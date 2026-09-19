@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChatGPTプロンプト活用術 | AIチャレンジ365 Day4</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="viewport">
+    <div id="stage">
+
+      <!-- 背景演出（全シーン共通） -->
+      <div class="bg">
+        <div class="orb orb-a"></div>
+        <div class="orb orb-b"></div>
+        <div class="grid-overlay"></div>
+      </div>
+
+      <!-- progress bar -->
+      <div class="progress-track"><div id="progress-bar"></div></div>
+
+      <!-- Scene 1: フック 0-2s -->
+      <section class="scene" id="scene-hook" data-scene="hook">
+        <div class="flash"></div>
+        <div class="content center-content">
+          <h1 class="hook-text">
+            <span class="line l1">ChatGPT、</span>
+            <span class="line l2">普通に質問するの<br>やめて。</span>
+          </h1>
+        </div>
+      </section>
+
+      <!-- Scene 2: 一文を足す 2-5s -->
+      <section class="scene" id="scene-add" data-scene="add">
+        <div class="content center-content">
+          <h1 class="add-text">
+            <span class="line l1">最後に</span>
+            <span class="line l2">
+              <span class="highlight">この一文</span><br>を足してみて。
+            </span>
+          </h1>
+        </div>
+      </section>
+
+      <!-- Scene 3: BEFORE 5-10s -->
+      <section class="scene" id="scene-before" data-scene="before">
+        <div class="content chat-content">
+          <div class="tag tag-bad">
+            <span class="tag-dot"></span>BEFORE
+          </div>
+
+          <div class="chat-window">
+            <div class="chat-header">
+              <span class="ai-avatar">✦</span><span class="chat-title">ChatGPT</span>
+            </div>
+            <div class="chat-body">
+              <div class="bubble bubble-user" data-text="副業のアイデアを考えて">
+                <span class="typed"></span><span class="caret"></span>
+              </div>
+              <div class="bubble bubble-ai bubble-dull">
+                <div class="dull-line w90"></div>
+                <div class="dull-line w75"></div>
+                <div class="dull-line w60"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="reaction reaction-bad">なんか普通…😐</div>
+        </div>
+      </section>
+
+      <!-- Scene 4: AFTER 10-15s -->
+      <section class="scene" id="scene-after" data-scene="after">
+        <div class="content chat-content">
+          <div class="tag tag-good">
+            <span class="tag-dot"></span>AFTER
+          </div>
+
+          <div class="chat-window chat-window-good">
+            <div class="chat-header">
+              <span class="ai-avatar ai-avatar-good">✦</span><span class="chat-title">ChatGPT</span>
+            </div>
+            <div class="chat-body">
+              <div class="bubble bubble-user bubble-user-good">
+                <span class="normal-part">副業のアイデアを考えて。</span>
+                <span class="key-part">回答する前に、<br>不足している情報があれば<br>質問してください。</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scene 5: 3つの質問 15-21s -->
+      <section class="scene" id="scene-questions" data-scene="questions">
+        <div class="content chat-content">
+          <div class="tag tag-good">
+            <span class="tag-dot"></span>ChatGPTからの質問
+          </div>
+          <div class="chat-window chat-window-good chat-window-q">
+            <div class="chat-header">
+              <span class="ai-avatar ai-avatar-good">✦</span><span class="chat-title">ChatGPT</span>
+            </div>
+            <div class="chat-body" id="question-body">
+              <div class="qa-row" data-q="1">
+                <div class="typing-indicator"><span></span><span></span><span></span></div>
+                <div class="bubble bubble-ai bubble-q">使える時間は？</div>
+              </div>
+              <div class="qa-row" data-q="2">
+                <div class="typing-indicator"><span></span><span></span><span></span></div>
+                <div class="bubble bubble-ai bubble-q">初期費用は？</div>
+              </div>
+              <div class="qa-row" data-q="3">
+                <div class="typing-indicator"><span></span><span></span><span></span></div>
+                <div class="bubble bubble-ai bubble-q">得意なことは？</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scene 6: 変化 21-25s -->
+      <section class="scene" id="scene-transform" data-scene="transform">
+        <div class="content center-content">
+          <div class="compare-row">
+            <div class="compare-card compare-before">
+              <div class="compare-label">ありきたり</div>
+              <div class="compare-dot"></div>
+            </div>
+            <div class="compare-arrow">→</div>
+            <div class="compare-card compare-after">
+              <div class="compare-label">あなた専用</div>
+              <div class="compare-dot"></div>
+            </div>
+          </div>
+          <h1 class="transform-text">自分に合った<br>回答に変わる。</h1>
+        </div>
+      </section>
+
+      <!-- Scene 7: CTA 25-29s -->
+      <section class="scene" id="scene-cta" data-scene="cta">
+        <div class="content center-content">
+          <div class="cta-icon">
+            <svg viewBox="0 0 24 24" width="72" height="72" fill="none">
+              <path d="M6 3h12a1 1 0 0 1 1 1v16.2a.8.8 0 0 1-1.24.66L12 16.6l-5.76 4.26A.8.8 0 0 1 5 20.2V4a1 1 0 0 1 1-1Z"
+                fill="url(#bmGrad)" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>
+              <defs>
+                <linearGradient id="bmGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#7C5CFC"/>
+                  <stop offset="100%" stop-color="#33D6FF"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h1 class="cta-text">この一文、<br>保存して使ってみて。</h1>
+          <p class="cta-sub">AIチャレンジ365</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -299,24 +299,21 @@ html, body {
   border-bottom: 1px solid rgba(255,255,255,0.08);
   margin-bottom: 30px;
 }
-.ai-avatar {
+.ai-avatar, .msg-avatar {
   width: 52px; height: 52px;
+  flex-shrink: 0;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--grey-dark), #2b2f3d);
-  color: var(--grey);
-  font-size: 26px;
-}
-.ai-avatar-good {
-  background: linear-gradient(135deg, var(--violet), var(--cyan));
-  color: #fff;
+  background: #ffffff;
+  color: #10131c;
+  font-size: 24px;
 }
 .chat-title { font-size: 32px; font-weight: 700; color: rgba(255,255,255,0.85); }
 
 .chat-body {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 30px;
   padding: 0 36px;
 }
 
@@ -329,9 +326,9 @@ html, body {
   line-height: 1.5;
   opacity: 0;
 }
-.bubble-user {
+.bubble-user, .bubble-user-good {
   align-self: flex-end;
-  background: linear-gradient(135deg, var(--violet), #5b8dfc);
+  background: #3a3c47;
   color: #fff;
   border-bottom-right-radius: 8px;
 }
@@ -349,27 +346,64 @@ html, body {
 @keyframes caretBlink { 50% { opacity: 0; } }
 .bubble-user.typed-done .caret { display: none; }
 
-.bubble-ai {
-  align-self: flex-start;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: var(--text);
-  border-bottom-left-radius: 8px;
+/* AI応答: 本物のChatGPTに合わせて吹き出し無し・アバター+プレーンテキスト */
+.msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  opacity: 0;
 }
-.bubble-dull {
+.scene#scene-before.active .msg-row {
   animation: bubbleIn 0.4s ease 1.5s forwards;
-  padding: 26px 30px;
-  width: 620px;
 }
+.msg-text {
+  padding-top: 8px;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text);
+}
+.dull-text { width: 560px; padding-top: 14px; }
 .dull-line {
   height: 22px;
   border-radius: 8px;
   background: rgba(255,255,255,0.14);
-  margin: 10px 0;
+  margin: 12px 0;
 }
 .dull-line.w90 { width: 90%; }
 .dull-line.w75 { width: 75%; }
 .dull-line.w60 { width: 60%; }
+
+.chat-inputbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 34px 36px 0;
+  padding: 22px 30px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.inputbar-placeholder {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--grey);
+}
+.inputbar-send {
+  width: 48px; height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.5);
+  font-size: 26px;
+  font-weight: 900;
+}
+.inputbar-send-good {
+  background: linear-gradient(135deg, var(--violet), var(--cyan));
+  color: #fff;
+}
 
 .reaction {
   align-self: center;
@@ -391,9 +425,6 @@ html, body {
 
 /* ---------------- Scene 4: after ---------------- */
 .bubble-user-good {
-  background: linear-gradient(135deg, var(--green), #22b8a3);
-  color: #06231c;
-  border-bottom-right-radius: 8px;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -404,11 +435,11 @@ html, body {
 .normal-part { font-weight: 700; opacity: 0.85; }
 .key-part {
   display: inline-block;
-  font-size: 44px;
+  font-size: 42px;
   font-weight: 900;
-  color: #06231c;
-  background: rgba(255,255,255,0.55);
-  padding: 14px 20px;
+  color: #1a1330;
+  background-image: linear-gradient(100deg, var(--orange), var(--pink));
+  padding: 14px 22px;
   border-radius: 14px;
   opacity: 0;
   transform: scale(0.92);
@@ -426,22 +457,24 @@ html, body {
 .chat-window-q { padding-bottom: 40px; }
 .qa-row {
   position: relative;
-  min-height: 100px;
+  min-height: 90px;
 }
-.typing-indicator {
+.qa-slot {
   position: absolute;
   top: 0; left: 0;
+  width: 100%;
   display: flex;
-  gap: 8px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.08);
-  padding: 20px 26px;
-  border-radius: 26px;
-  border-bottom-left-radius: 8px;
+  align-items: center;
+  gap: 20px;
   opacity: 0;
 }
+.typing-indicator {
+  display: flex;
+  gap: 8px;
+  padding: 14px 0;
+}
 .typing-indicator span {
-  width: 12px; height: 12px;
+  width: 14px; height: 14px;
   border-radius: 50%;
   background: var(--grey);
   animation: dotBounce 1s infinite ease-in-out;
@@ -452,14 +485,10 @@ html, body {
   0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
   40% { transform: translateY(-8px); opacity: 1; }
 }
-.qa-row .bubble-q {
-  position: absolute;
-  top: 0; left: 0;
-  opacity: 0;
-}
-.qa-row.show-typing .typing-indicator { animation: fadeIn 0.25s ease forwards; }
-.qa-row.show-msg .typing-indicator { animation: fadeOut 0.2s ease forwards; }
-.qa-row.show-msg .bubble-q { animation: bubbleIn 0.35s ease 0.05s forwards; }
+.msg-text-q { padding-top: 12px; }
+.qa-row.show-typing .qa-typing { animation: fadeIn 0.25s ease forwards; }
+.qa-row.show-msg .qa-typing { animation: fadeOut 0.2s ease forwards; }
+.qa-row.show-msg .qa-msg { animation: bubbleIn 0.35s ease 0.05s forwards; }
 @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
 @keyframes fadeOut { from{opacity:1;} to{opacity:0;} }
 

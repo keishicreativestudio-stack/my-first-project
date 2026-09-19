@@ -59,11 +59,18 @@
               <div class="bubble bubble-user" data-text="副業のアイデアを考えて">
                 <span class="typed"></span><span class="caret"></span>
               </div>
-              <div class="bubble bubble-ai bubble-dull">
-                <div class="dull-line w90"></div>
-                <div class="dull-line w75"></div>
-                <div class="dull-line w60"></div>
+              <div class="msg-row">
+                <span class="msg-avatar">✦</span>
+                <div class="msg-text dull-text">
+                  <div class="dull-line w90"></div>
+                  <div class="dull-line w75"></div>
+                  <div class="dull-line w60"></div>
+                </div>
               </div>
+            </div>
+            <div class="chat-inputbar">
+              <span class="inputbar-placeholder">ChatGPTにメッセージを送る</span>
+              <span class="inputbar-send">↑</span>
             </div>
           </div>
 
@@ -80,13 +87,17 @@
 
           <div class="chat-window chat-window-good">
             <div class="chat-header">
-              <span class="ai-avatar ai-avatar-good">✦</span><span class="chat-title">ChatGPT</span>
+              <span class="ai-avatar">✦</span><span class="chat-title">ChatGPT</span>
             </div>
             <div class="chat-body">
               <div class="bubble bubble-user bubble-user-good">
                 <span class="normal-part">副業のアイデアを考えて。</span>
                 <span class="key-part">回答する前に、<br>不足している情報があれば<br>質問してください。</span>
               </div>
+            </div>
+            <div class="chat-inputbar chat-inputbar-good">
+              <span class="inputbar-placeholder">ChatGPTにメッセージを送る</span>
+              <span class="inputbar-send inputbar-send-good">↑</span>
             </div>
           </div>
         </div>
@@ -100,21 +111,43 @@
           </div>
           <div class="chat-window chat-window-good chat-window-q">
             <div class="chat-header">
-              <span class="ai-avatar ai-avatar-good">✦</span><span class="chat-title">ChatGPT</span>
+              <span class="ai-avatar">✦</span><span class="chat-title">ChatGPT</span>
             </div>
             <div class="chat-body" id="question-body">
               <div class="qa-row" data-q="1">
-                <div class="typing-indicator"><span></span><span></span><span></span></div>
-                <div class="bubble bubble-ai bubble-q">使える時間は？</div>
+                <div class="qa-slot qa-typing">
+                  <span class="msg-avatar">✦</span>
+                  <div class="typing-indicator"><span></span><span></span><span></span></div>
+                </div>
+                <div class="qa-slot qa-msg">
+                  <span class="msg-avatar">✦</span>
+                  <div class="msg-text msg-text-q">使える時間は？</div>
+                </div>
               </div>
               <div class="qa-row" data-q="2">
-                <div class="typing-indicator"><span></span><span></span><span></span></div>
-                <div class="bubble bubble-ai bubble-q">初期費用は？</div>
+                <div class="qa-slot qa-typing">
+                  <span class="msg-avatar">✦</span>
+                  <div class="typing-indicator"><span></span><span></span><span></span></div>
+                </div>
+                <div class="qa-slot qa-msg">
+                  <span class="msg-avatar">✦</span>
+                  <div class="msg-text msg-text-q">初期費用は？</div>
+                </div>
               </div>
               <div class="qa-row" data-q="3">
-                <div class="typing-indicator"><span></span><span></span><span></span></div>
-                <div class="bubble bubble-ai bubble-q">得意なことは？</div>
+                <div class="qa-slot qa-typing">
+                  <span class="msg-avatar">✦</span>
+                  <div class="typing-indicator"><span></span><span></span><span></span></div>
+                </div>
+                <div class="qa-slot qa-msg">
+                  <span class="msg-avatar">✦</span>
+                  <div class="msg-text msg-text-q">得意なことは？</div>
+                </div>
               </div>
+            </div>
+            <div class="chat-inputbar chat-inputbar-good">
+              <span class="inputbar-placeholder">ChatGPTにメッセージを送る</span>
+              <span class="inputbar-send inputbar-send-good">↑</span>
             </div>
           </div>
         </div>

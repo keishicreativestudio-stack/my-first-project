@@ -21,6 +21,9 @@
       <!-- progress bar -->
       <div class="progress-track"><div id="progress-bar"></div></div>
 
+      <!-- 音声有効化ヒント（初回クリック/タップで消える） -->
+      <div id="audio-hint">🔊 クリックして音声ON</div>
+
       <!-- Scene 1: フック 0-2s -->
       <section class="scene" id="scene-hook" data-scene="hook">
         <div class="flash"></div>
@@ -194,6 +197,7 @@
     </div>
   </div>
 
+  <script src="audio.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

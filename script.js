@@ -72,6 +72,7 @@
       if (!el) return;
       if (i <= text.length) {
         el.textContent = text.slice(0, i);
+        if (i > 0 && i % 3 === 0) VideoAudio.sfx.tick();
         i++;
         timers.push(setTimeout(step, speed));
       } else if (onDone) {
@@ -82,6 +83,7 @@
   }
 
   // 3つの質問をテンポよく表示
+  var QUESTION_TEXTS = ["使える時間は？", "初期費用は？", "得意なことは？"];
   function runQuestions() {
     var rows = document.querySelectorAll("#question-body .qa-row");
     var stepGap = 2000;
@@ -91,6 +93,8 @@
       at(t0 + 550, function () {
         row.classList.remove("show-typing");
         row.classList.add("show-msg");
+        VideoAudio.sfx.question(idx);
+        VideoAudio.narrate(QUESTION_TEXTS[idx], { rate: 1.15 });
       });
     });
   }
@@ -100,12 +104,23 @@
     clearTimers();
     resetAll();
 
-    at(TIMELINE.hook, function () { activate("hook"); });
+    at(TIMELINE.hook, function () {
+      activate("hook");
+      VideoAudio.sfx.punch();
+      VideoAudio.narrate("ChatGPT、普通に質問するのやめて。", { rate: 1.18 });
+    });
 
-    at(TIMELINE.add, function () { activate("add"); });
+    at(TIMELINE.add, function () {
+      activate("add");
+      VideoAudio.sfx.whoosh();
+      VideoAudio.narrate("最後に、この一文を足してみて。", { rate: 1.15 });
+      at(750, function () { VideoAudio.sfx.highlight(); });
+    });
 
     at(TIMELINE.before, function () {
       activate("before");
+      VideoAudio.sfx.whoosh();
+      VideoAudio.narrate("副業のアイデアを考えて。これだと、なんか普通な回答に。", { rate: 1.18 });
       var typedEl = document.querySelector("#scene-before .typed");
       var typedBubble = document.querySelector("#scene-before .bubble-user");
       at(550, function () {
@@ -113,22 +128,44 @@
           if (typedBubble) typedBubble.classList.add("typed-done");
         });
       });
+      at(1500, function () { VideoAudio.sfx.pop(); });
+      at(2150, function () { VideoAudio.sfx.sadDip(); });
     });
 
-    at(TIMELINE.after, function () { activate("after"); });
+    at(TIMELINE.after, function () {
+      activate("after");
+      VideoAudio.sfx.whoosh();
+      at(350, function () { VideoAudio.sfx.pop(); });
+      at(1050, function () {
+        VideoAudio.sfx.highlight();
+        VideoAudio.narrate("回答する前に、不足している情報があれば質問してください。", { rate: 1.12 });
+      });
+    });
 
     at(TIMELINE.questions, function () {
       activate("questions");
+      VideoAudio.sfx.whoosh();
       runQuestions();
     });
 
-    at(TIMELINE.transform, function () { activate("transform"); });
+    at(TIMELINE.transform, function () {
+      activate("transform");
+      VideoAudio.sfx.whoosh();
+      VideoAudio.narrate("自分に合った回答に変わります。", { rate: 1.12 });
+      at(450, function () { VideoAudio.sfx.success(); });
+    });
 
-    at(TIMELINE.cta, function () { activate("cta"); });
+    at(TIMELINE.cta, function () {
+      activate("cta");
+      VideoAudio.sfx.whoosh();
+      VideoAudio.narrate("この一文、保存して使ってみてください。", { rate: 1.1 });
+      at(50, function () { VideoAudio.sfx.cta(); });
+    });
 
     at(END, function () {
       var cta = document.getElementById("scene-cta");
       if (cta) cta.classList.remove("active");
+      VideoAudio.stopNarration();
     });
   }
 
@@ -171,17 +208,28 @@
   function startLoop() {
     clearTimers();
     resetAll();
+    VideoAudio.stopNarration();
     startTs = null;
     scheduleAll();
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(tick);
   }
 
-  // QA用: クリック / Rキーで即リスタート
+  // ---------- 音声の有効化（ブラウザの自動再生ポリシー対応） ----------
+  // 効果音・ナレーションはユーザー操作なしには鳴らせないため、
+  // 最初のクリック/タップで有効化し、頭から再生し直して音声と同期させる。
+  // 2回目以降のクリックはQA用の即リスタートとして機能する。
+  var audioHint = document.getElementById("audio-hint");
+  function handleUserGesture() {
+    VideoAudio.unlock();
+    if (audioHint) audioHint.classList.add("hidden");
+    startLoop();
+  }
+  document.addEventListener("click", handleUserGesture);
+  document.addEventListener("touchstart", handleUserGesture, { passive: true });
   window.addEventListener("keydown", function (e) {
-    if (e.key === "r" || e.key === "R") startLoop();
+    if (e.key === "r" || e.key === "R") handleUserGesture();
   });
-  document.addEventListener("click", function () { startLoop(); });
 
   startLoop();
 })();

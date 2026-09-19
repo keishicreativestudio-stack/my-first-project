@@ -585,6 +585,31 @@ html, body {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* ---------------- 音声有効化ヒント ---------------- */
+#audio-hint {
+  position: absolute;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  background: rgba(10,10,18,0.72);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 700;
+  padding: 14px 28px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  animation: hintPulse 1.6s ease-in-out infinite;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+#audio-hint.hidden { opacity: 0; }
+@keyframes hintPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.04); }
+}
+
 /* ---------------- debug overlay ---------------- */
 #debug {
   position: fixed;

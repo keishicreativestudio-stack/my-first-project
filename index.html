@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- APP START -->
+<title>間取りメーカー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --ink: #1f2a37;
+  --ink-soft: #5a6878;
+  --line: #d5dde6;
+  --chrome: #eef2f6;
+  --panel: #f8fafc;
+  --paper: #ffffff;
+  --accent: #2b4c7e;
+  --accent-soft: #dbe5f3;
+  --danger: #b4322a;
+  --grid-minor: #e6eef5;
+  --grid-major: #c9d7e4;
+  --sans: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ink: #e4e9ef; --ink-soft: #9aa7b5; --line: #334150; --chrome: #17202a;
+    --panel: #1d2733; --accent: #8fb0e0; --accent-soft: #28384d; --danger: #f08a80;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e4e9ef; --ink-soft: #9aa7b5; --line: #334150; --chrome: #17202a;
+  --panel: #1d2733; --accent: #8fb0e0; --accent-soft: #28384d; --danger: #f08a80;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--chrome); color: var(--ink);
+  font-family: var(--sans); font-size: 14px; overflow: hidden;
+}
+* { box-sizing: border-box; }
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.app {
+  height: 100%; display: grid;
+  grid-template-columns: 188px 1fr 232px;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "top top top" "pal stage props";
+}
+.top {
+  grid-area: top; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.brand { font-weight: 700; font-size: 16px; letter-spacing: .04em; margin-right: 8px; white-space: nowrap; }
+.brand small { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--ink-soft); margin-left: 6px; letter-spacing: 0; }
+.tools { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+.btn {
+  border: 1px solid var(--line); background: var(--paper); border-radius: 6px;
+  padding: 5px 10px; cursor: pointer; white-space: nowrap; line-height: 1.3;
+}
+:root[data-theme="dark"] .btn { background: var(--chrome); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn { background: var(--chrome); } }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.danger { color: var(--danger); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.total {
+  margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--ink-soft);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.total b { color: var(--ink); font-size: 14px; font-weight: 500; }
+select.btn { padding-right: 4px; }
+
+.palette {
+  grid-area: pal; overflow-y: auto; padding: 12px; background: var(--panel);
+  border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px;
+}
+.group h3 {
+  margin: 0 0 6px; font-size: 11px; font-weight: 500; letter-spacing: .12em; color: var(--ink-soft);
+}
+.items { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.item {
+  border: 1px solid var(--line); background: var(--paper); border-radius: 6px; cursor: pointer;
+  padding: 6px 4px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  touch-action: pan-y;
+}
+:root[data-theme="dark"] .item { background: var(--chrome); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .item { background: var(--chrome); } }
+.item:hover { border-color: var(--accent); background: var(--accent-soft); }
+.item svg { width: 44px; height: 30px; }
+.item span { font-size: 12px; }
+.item em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--ink-soft); }
+
+.stage { grid-area: stage; position: relative; overflow: hidden; background: var(--paper); }
+#canvas { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+#canvas.panning { cursor: grabbing; }
+#shapes * , #selection *, #guides * { vector-effect: non-scaling-stroke; }
+.shape { cursor: move; }
+.handle { cursor: pointer; }
+.zoombox {
+  position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; align-items: center;
+  font-family: var(--mono); font-size: 11px; color: #5a6878;
+}
+.zoombox .btn { background: #fff; color: #1f2a37; border-color: #d5dde6; padding: 3px 9px; }
+.hint {
+  position: absolute; left: 12px; bottom: 12px; font-size: 11px; color: #5a6878;
+  background: rgba(255,255,255,.85); padding: 4px 8px; border-radius: 4px; max-width: calc(100% - 180px);
+}
+
+.props {
+  grid-area: props; overflow-y: auto; padding: 14px; background: var(--panel);
+  border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px;
+}
+.props h2 { margin: 0; font-size: 15px; }
+.props .empty { color: var(--ink-soft); font-size: 13px; line-height: 1.7; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); }
+.field input[type="text"], .field input[type="number"] {
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: var(--paper); width: 100%;
+}
+:root[data-theme="dark"] .field input { background: var(--chrome); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .field input { background: var(--chrome); } }
+.field input[type="number"] { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatch { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); cursor: pointer; padding: 0; }
+.swatch[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.area {
+  font-family: var(--mono); font-variant-numeric: tabular-nums; background: var(--accent-soft);
+  border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: baseline;
+}
+.area b { font-size: 18px; font-weight: 500; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 6px; }
+.keys { font-size: 11px; color: var(--ink-soft); line-height: 1.8; margin-top: auto; }
+.keys kbd { font-family: var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 10px; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.toast {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: #1f2a37; color: #fff;
+  padding: 6px 14px; border-radius: 6px; font-size: 13px; pointer-events: none; opacity: 0; transition: opacity .2s;
+}
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+@media (max-width: 820px) {
+  .app {
+    grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto;
+    grid-template-areas: "top" "stage" "props" "pal";
+  }
+  .brand small, .hint { display: none; }
+  .palette {
+    border-right: 0; border-top: 1px solid var(--line); flex-direction: row; overflow-x: auto; overflow-y: hidden;
+    padding: 8px 16px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); gap: 12px;
+  }
+  .group { flex: none; }
+  .items { display: flex; }
+  .item { width: 64px; flex: none; touch-action: pan-x; }
+  .props { border-left: 0; border-top: 1px solid var(--line); max-height: 38vh; padding: 10px 16px; }
+  .props.none { display: none; }
+  .keys { display: none; }
+  .total { margin-left: 0; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">間取りメーカー<small>1マス=455mm</small></div>
+    <div class="tools">
+      <button class="btn" id="undo" title="元に戻す (Ctrl+Z)">↶ 戻す</button>
+      <button class="btn" id="redo" title="やり直し (Ctrl+Y)">↷ やり直し</button>
+      <span class="sep"></span>
+      <select class="btn" id="gridSel" title="スナップ間隔">
+        <option value="910">吸着 910mm</option>
+        <option value="455" selected>吸着 455mm</option>
+        <option value="91">吸着 91mm</option>
+        <option value="10">吸着 10mm</option>
+      </select>
+      <label class="check btn" title="ほかの図形の辺にぴったり吸着させる"><input type="checkbox" id="magnet" checked>辺に吸着</label>
+      <span class="sep"></span>
+      <button class="btn" id="fit">全体表示</button>
+      <button class="btn" id="png">PNG保存</button>
+      <button class="btn" id="save">JSON保存</button>
+      <button class="btn" id="load">読込</button>
+      <button class="btn" id="sample">サンプル</button>
+      <button class="btn danger" id="clear">全消去</button>
+      <input type="file" id="file" accept=".json,application/json" hidden>
+    </div>
+    <div class="total">延床 <b id="totalM2">0.00</b> ㎡ ／ <b id="totalJo">0.0</b> 帖 ／ <b id="totalTsubo">0.00</b> 坪</div>
+  </header>
+
+  <aside class="palette" id="palette" aria-label="図形パレット"></aside>
+
+  <main class="stage" id="stage">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+      <g id="world">
+        <path id="gridMinor" fill="none" stroke="#e6eef5" stroke-width="1" vector-effect="non-scaling-stroke"/>
+        <path id="gridMajor" fill="none" stroke="#c9d7e4" stroke-width="1" vector-effect="non-scaling-stroke"/>
+        <g id="shapes"></g>
+        <g id="labels"></g>
+        <g id="guides"></g>
+        <g id="selection"></g>
+      </g>
+    </svg>
+    <div class="hint">パレットの図形をクリックかドラッグで配置 → ドラッグで移動・四隅で伸縮。辺どうしが自動でぴったり合わさります。</div>
+    <div class="zoombox">
+      <button class="btn" id="zoomOut" aria-label="縮小">−</button>
+      <span id="zoomVal">100%</span>
+      <button class="btn" id="zoomIn" aria-label="拡大">＋</button>
+    </div>
+    <div class="toast" id="toast"></div>
+  </main>
+
+  <aside class="props" id="props" aria-label="プロパティ"></aside>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- カタログ（単位: mm） ----------
+const ROOM_COLORS = ['#f6ead3', '#fbe0c6', '#e2ecd2', '#d5e9f4', '#e9e2f2', '#f3dede', '#ebe7e0', '#ffffff'];
+const CATALOG = [
+  { group: '部屋', items: [
+    { type: 'room', name: '洋室', w: 3640, h: 2730, color: '#f6ead3' },
+    { type: 'room', name: 'LDK', w: 5460, h: 3640, color: '#fbe0c6' },
+    { type: 'room', name: '和室', w: 2730, h: 2730, color: '#e2ecd2' },
+    { type: 'room', name: '浴室', w: 1820, h: 1820, color: '#d5e9f4' },
+    { type: 'room', name: '洗面所', w: 1820, h: 1820, color: '#d5e9f4' },
+    { type: 'room', name: 'トイレ', w: 910, h: 1820, color: '#d5e9f4' },
+    { type: 'room', name: '玄関', w: 1820, h: 1365, color: '#ebe7e0' },
+    { type: 'room', name: '廊下', w: 910, h: 3640, color: '#ebe7e0' },
+    { type: 'room', name: 'CL', w: 910, h: 1820, color: '#e9e2f2', closet: true },
+    { type: 'room', name: 'バルコニー', w: 3640, h: 910, color: '#ffffff', outdoor: true },
+  ]},
+  { group: '壁・建具', items: [
+    { type: 'wall', name: '壁', w: 1820, h: 120 },
+    { type: 'door', name: '開き戸', w: 910, h: 910 },
+    { type: 'sliding', name: '引き戸', w: 1820, h: 120 },
+    { type: 'window', name: '窓', w: 1820, h: 120 },
+    { type: 'stairs', name: '階段', w: 910, h: 2730 },
+  ]},
+  { group: '設備・家具', items: [
+    { type: 'kitchen', name: 'キッチン', w: 2550, h: 650 },
+    { type: 'fridge', name: '冷蔵庫', w: 650, h: 700 },
+    { type: 'bath', name: '浴槽', w: 1600, h: 800 },
+    { type: 'toilet', name: '便器', w: 450, h: 750 },
+    { type: 'basin', name: '洗面台', w: 750, h: 550 },
+    { type: 'washer', name: '洗濯機', w: 640, h: 640 },
+    { type: 'bed', name: 'シングル', w: 1000, h: 2000 },
+    { type: 'bed', name: 'ダブル', w: 1400, h: 2000 },
+    { type: 'sofa', name: 'ソファ', w: 1800, h: 850 },
+    { type: 'table', name: 'テーブル', w: 1350, h: 800 },
+  ]},
+];
+const LAYER = { room: 0, stairs: 1, kitchen: 2, fridge: 2, bath: 2, toilet: 2, basin: 2, washer: 2, bed: 2, sofa: 2, table: 2, wall: 3, window: 4, sliding: 4, door: 4 };
+const JO = 1.62;      // 1帖 = 1.62㎡（不動産表示の目安）
+const TSUBO = 3.30579;
+const MIN = 50;
+
+// ---------- 図形シンボル（ローカル座標 0..lw, 0..lh） ----------
+const K = '#2a3440';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const SYM = {
+  room(s, w, h) {
+    let o = `<rect width="${w}" height="${h}" fill="${s.color || '#fff'}" stroke="${K}" stroke-width="${s.outdoor ? 1.2 : 2.4}"${s.outdoor ? ' stroke-dasharray="6 4"' : ''}/>`;
+    if (s.closet) o += `<path d="M0,0L${w},${h}M${w},0L0,${h}" stroke="${K}" stroke-width=".8" fill="none"/>`;
+    return o;
+  },
+  wall: (s, w, h) => `<rect width="${w}" height="${h}" fill="${K}"/>`,
+  door(s, w, h) {
+    return `<rect width="${w}" height="${h}" fill="transparent"/>` +
+      `<line x1="0" y1="${h}" x2="${w}" y2="${h}" stroke="#fff" stroke-width="6"/>` +
+      `<path d="M0,0A${w},${h} 0 0 1 ${w},${h}" fill="none" stroke="${K}" stroke-width="1" stroke-dasharray="4 3"/>` +
+      `<line x1="0" y1="${h}" x2="0" y2="0" stroke="${K}" stroke-width="2.4"/>`;
+  },
+  sliding(s, w, h) {
+    return `<rect width="${w}" height="${h}" fill="#fff"/>` +
+      `<rect x="0" y="0" width="${w * .55}" height="${h / 2}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+      `<rect x="${w * .45}" y="${h / 2}" width="${w * .55}" height="${h / 2}" fill="#fff" stroke="${K}" stroke-width="1.2"/>`;
+  },
+  window(s, w, h) {
+    return `<rect width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+      `<line x1="0" y1="${h / 2}" x2="${w}" y2="${h / 2}" stroke="${K}" stroke-width="1"/>`;
+  },
+  stairs(s, w, h) {
+    const n = Math.max(3, Math.round(h / 228));
+    let o = `<rect width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.2"/>`;
+    for (let i = 1; i < n; i++) o += `<line x1="0" y1="${h * i / n}" x2="${w}" y2="${h * i / n}" stroke="${K}" stroke-width=".8"/>`;
+    const cx = w / 2, a = Math.min(w, h) * .12;
+    o += `<path d="M${cx},${h * .92}L${cx},${h * .08}M${cx - a},${h * .08 + a}L${cx},${h * .08}L${cx + a},${h * .08 + a}" fill="none" stroke="${K}" stroke-width="1.2"/>`;
+    return o;
+  },
+  kitchen(s, w, h) {
+    const r = Math.min(h * .2, w * .08);
+    return `<rect width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+      `<rect x="${w * .08}" y="${h * .2}" width="${w * .26}" height="${h * .6}" rx="${h * .06}" fill="none" stroke="${K}" stroke-width="1"/>` +
+      `<circle cx="${w * .66}" cy="${h / 2}" r="${r}" fill="none" stroke="${K}" stroke-width="1"/>` +
+      `<circle cx="${w * .86}" cy="${h / 2}" r="${r}" fill="none" stroke="${K}" stroke-width="1"/>`;
+  },
+  fridge: (s, w, h) => `<rect width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+    `<text x="${w / 2}" y="${h / 2}" font-size="${Math.min(w, h) * .45}" text-anchor="middle" dominant-baseline="central" fill="${K}">冷</text>`,
+  bath: (s, w, h) => `<rect width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+    `<rect x="${w * .06}" y="${h * .1}" width="${w * .88}" height="${h * .8}" rx="${Math.min(w, h) * .3}" fill="none" stroke="${K}" stroke-width="1"/>`,
+  toilet: (s, w, h) => `<rect width="${w}" height="${h}" fill="transparent"/>` +
+    `<rect x="${w * .05}" y="0" width="${w * .9}" height="${h * .28}" rx="${w * .06}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+    `<ellipse cx="${w / 2}" cy="${h * .62}" rx="${w * .4}" ry="${h * .34}" fill="#fff" stroke="${K}" stroke-width="1.2"/>`,
+  basin: (s, w, h) => `<rect width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+    `<ellipse cx="${w / 2}" cy="${h * .55}" rx="${w * .3}" ry="${h * .3}" fill="none" stroke="${K}" stroke-width="1"/>`,
+  washer: (s, w, h) => `<rect width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+    `<circle cx="${w / 2}" cy="${h / 2}" r="${Math.min(w, h) * .34}" fill="none" stroke="${K}" stroke-width="1"/>`,
+  bed: (s, w, h) => `<rect width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+    `<rect x="${w * .1}" y="${h * .04}" width="${w * .8}" height="${h * .13}" rx="${h * .03}" fill="none" stroke="${K}" stroke-width="1"/>` +
+    `<line x1="0" y1="${h * .3}" x2="${w}" y2="${h * .3}" stroke="${K}" stroke-width="1"/>`,
+  sofa: (s, w, h) => `<rect width="${w}" height="${h}" rx="${h * .12}" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+    `<path d="M0,${h * .28}H${w}M${w * .12},${h * .28}V${h}M${w * .88},${h * .28}V${h}" fill="none" stroke="${K}" stroke-width="1"/>`,
+  table: (s, w, h) => `<rect width="${w}" height="${h}" rx="${Math.min(w, h) * .08}" fill="#fff" stroke="${K}" stroke-width="1.2"/>`,
+};
+
+// ---------- 状態 ----------
+let shapes = [];
+let selId = null;
+let seq = 1;
+const view = { x: -1000, y: -1000, s: 0.1 };   // s = px / mm
+const hist = { stack: [], idx: -1 };
+let grid = 455;
+let magnet = true;
+
+const $ = id => document.getElementById(id);
+const svg = $('canvas'), world = $('world');
+const newId = () => 's' + (seq++) + Math.random().toString(36).slice(2, 6);
+const lsize = s => (s.rot % 180 ? [s.h, s.w] : [s.w, s.h]);
+const byId = id => shapes.find(s => s.id === id);
+const areaM2 = s => s.w * s.h / 1e6;
+
+// ---------- 履歴 ----------
+function commit() {
+  const snap = JSON.stringify(shapes);
+  if (hist.stack[hist.idx] === snap) return;
+  hist.stack = hist.stack.slice(0, hist.idx + 1);
+  hist.stack.push(snap);
+  if (hist.stack.length > 200) hist.stack.shift();
+  hist.idx = hist.stack.length - 1;
+  persist();
+  updateHistBtns();
+}
+function restore(i) {
+  hist.idx = i;
+  shapes = JSON.parse(hist.stack[i]);
+  if (!byId(selId)) selId = null;
+  persist(); render(); renderProps(); updateHistBtns();
+}
+const undo = () => hist.idx > 0 && restore(hist.idx - 1);
+const redo = () => hist.idx < hist.stack.length - 1 && restore(hist.idx + 1);
+function updateHistBtns() {
+  $('undo').disabled = hist.idx <= 0;
+  $('redo').disabled = hist.idx >= hist.stack.length - 1;
+}
+function persist() {
+  try { localStorage.setItem('madori-v1', JSON.stringify(shapes)); } catch (e) { /* 保存不可の環境 */ }
+}
+
+// ---------- 描画 ----------
+function shapeSVG(s) {
+  const [lw, lh] = lsize(s);
+  const t = `translate(${s.x + s.w / 2},${s.y + s.h / 2}) rotate(${s.rot || 0}) scale(${s.flip ? -1 : 1},1) translate(${-lw / 2},${-lh / 2})`;
+  return `<g class="shape" data-id="${s.id}" transform="${t}">${SYM[s.type](s, lw, lh)}</g>`;
+}
+function labelSVG(s) {
+  if (s.type !== 'room') return '';
+  const fs = Math.max(100, Math.min(200, Math.min(s.w, s.h) / 5.5));
+  const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+  const m2 = areaM2(s);
+  const sub = s.closet ? '' : `${(m2 / JO).toFixed(1)}帖`;
+  const lines = [`<tspan x="${cx}" dy="0" font-weight="700">${esc(s.name || '')}</tspan>`];
+  if (sub && !s.outdoor) lines.push(`<tspan x="${cx}" dy="${fs * 1.25}" font-size="${fs * .78}" font-family="IBM Plex Mono, monospace">${sub}</tspan>`);
+  const y0 = cy - (lines.length - 1) * fs * .62;
+  return `<text x="${cx}" y="${y0}" font-size="${fs}" text-anchor="middle" dominant-baseline="central" fill="#1f2a37" font-family="Zen Kaku Gothic New, Hiragino Sans, sans-serif" pointer-events="none">${lines.join('')}</text>`;
+}
+const ordered = () => shapes.map((s, i) => [s, i]).sort((a, b) => (LAYER[a[0].type] - LAYER[b[0].type]) || a[1] - b[1]).map(p => p[0]);
+
+function render() {
+  const r = svg.getBoundingClientRect();
+  world.setAttribute('transform', `matrix(${view.s},0,0,${view.s},${-view.x * view.s},${-view.y * view.s})`);
+  // グリッド
+  const x0 = view.x, y0 = view.y, x1 = view.x + r.width / view.s, y1 = view.y + r.height / view.s;
+  const gridPath = step => {
+    let d = '';
+    for (let x = Math.floor(x0 / step) * step; x <= x1; x += step) d += `M${x},${y0}V${y1}`;
+    for (let y = Math.floor(y0 / step) * step; y <= y1; y += step) d += `M${x0},${y}H${x1}`;
+    return d;
+  };
+  $('gridMinor').setAttribute('d', 455 * view.s >= 6 ? gridPath(455) : '');
+  $('gridMajor').setAttribute('d', 1820 * view.s >= 8 ? gridPath(1820) : gridPath(7280));
+  const list = ordered();
+  $('shapes').innerHTML = list.map(shapeSVG).join('');
+  $('labels').innerHTML = list.map(labelSVG).join('');
+  renderSelection();
+  $('zoomVal').textContent = Math.round(view.s / 0.1 * 100) + '%';
+  updateTotal();
+}
+
+function renderSelection() {
+  const s = byId(selId);
+  const g = $('selection');
+  if (!s) { g.innerHTML = ''; return; }
+  const k = 1 / view.s, hs = 9 * k;
+  let o = `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" fill="none" stroke="#2b4c7e" stroke-width="1.5" stroke-dasharray="5 3" pointer-events="none"/>`;
+  const hx = [s.x, s.x + s.w / 2, s.x + s.w], hy = [s.y, s.y + s.h / 2, s.y + s.h];
+  const dirs = [['nw', 0, 0], ['n', 1, 0], ['ne', 2, 0], ['e', 2, 1], ['se', 2, 2], ['s', 1, 2], ['sw', 0, 2], ['w', 0, 1]];
+  const cur = { nw: 'nwse', se: 'nwse', ne: 'nesw', sw: 'nesw', n: 'ns', s: 'ns', e: 'ew', w: 'ew' };
+  for (const [d, i, j] of dirs) {
+    o += `<rect class="handle" data-handle="${d}" x="${hx[i] - hs / 2}" y="${hy[j] - hs / 2}" width="${hs}" height="${hs}" fill="#fff" stroke="#2b4c7e" stroke-width="1.5" style="cursor:${cur[d]}-resize"/>`;
+  }
+  // 寸法表示
+  const fs = 12 * k;
+  o += `<text x="${s.x + s.w / 2}" y="${s.y - 14 * k}" font-size="${fs}" text-anchor="middle" fill="#2b4c7e" font-family="IBM Plex Mono, monospace" pointer-events="none">${Math.round(s.w)}</text>`;
+  o += `<text x="${s.x + s.w + 14 * k}" y="${s.y + s.h / 2}" font-size="${fs}" dominant-baseline="central" fill="#2b4c7e" font-family="IBM Plex Mono, monospace" pointer-events="none">${Math.round(s.h)}</text>`;
+  g.innerHTML = o;
+}
+
+function showGuides(gx, gy) {
+  const r = svg.getBoundingClientRect();
+  let o = '';
+  const y0 = view.y, y1 = view.y + r.height / view.s, x0 = view.x, x1 = view.x + r.width / view.s;
+  if (gx != null) o += `<line x1="${gx}" y1="${y0}" x2="${gx}" y2="${y1}" stroke="#d2462f" stroke-width="1" stroke-dasharray="4 3"/>`;
+  if (gy != null) o += `<line x1="${x0}" y1="${gy}" x2="${x1}" y2="${gy}" stroke="#d2462f" stroke-width="1" stroke-dasharray="4 3"/>`;
+  $('guides').innerHTML = o;
+}
+
+// 部屋の合計面積（重なりは1回だけ数える）
+function unionArea(rects) {
+  if (!rects.length) return 0;
+  const xs = [...new Set(rects.flatMap(r => [r.x, r.x + r.w]))].sort((a, b) => a - b);
+  let total = 0;
+  for (let i = 0; i < xs.length - 1; i++) {
+    const a = xs[i], b = xs[i + 1];
+    const iv = rects.filter(r => r.x <= a && r.x + r.w >= b).map(r => [r.y, r.y + r.h]).sort((p, q) => p[0] - q[0]);
+    let len = 0, cs = -Infinity, ce = -Infinity;
+    for (const [s, e] of iv) {
+      if (s > ce) { len += ce - cs > 0 ? ce - cs : 0; cs = s; ce = e; } else ce = Math.max(ce, e);
+    }
+    if (ce > cs) len += ce - cs;
+    total += len * (b - a);
+  }
+  return total / 1e6;
+}
+function updateTotal() {
+  const m2 = unionArea(shapes.filter(s => s.type === 'room' && !s.outdoor));
+  $('totalM2').textContent = m2.toFixed(2);
+  $('totalJo').textContent = (m2 / JO).toFixed(1);
+  $('totalTsubo').textContent = (m2 / TSUBO).toFixed(2);
+}
+
+// ---------- パレット ----------
+function iconSVG(it) {
+  const pad = 40, maxW = 440, maxH = 300;
+  const k = Math.min((maxW - pad * 2) / it.w, (maxH - pad * 2) / it.h);
+  const w = it.w * k, h = it.h * k;
+  const s = { ...it, rot: 0 };
+  return `<svg viewBox="0 0 ${maxW} ${maxH}"><g transform="translate(${(maxW - w) / 2},${(maxH - h) / 2})" style="vector-effect:non-scaling-stroke">${SYM[it.type](s, w, h).replace(/stroke-width="[\d.]+"/g, 'stroke-width="14"')}</g></svg>`;
+}
+function buildPalette() {
+  $('palette').innerHTML = CATALOG.map((g, gi) => `<div class="group"><h3>${g.group}</h3><div class="items">${
+    g.items.map((it, ii) => `<button class="item" data-g="${gi}" data-i="${ii}" title="${esc(it.name)} ${it.w}×${it.h}mm">${iconSVG(it)}<span>${esc(it.name)}</span><em>${it.w}×${it.h}</em></button>`).join('')
+  }</div></div>`).join('');
+}
+
+function makeShape(it, cx, cy) {
+  const s = { id: newId(), type: it.type, name: it.name, w: it.w, h: it.h, rot: 0, flip: false };
+  if (it.color) s.color = it.color;
+  if (it.closet) s.closet = true;
+  if (it.outdoor) s.outdoor = true;
+  const g = grid;
+  s.x = Math.round((cx - s.w / 2) / g) * g;
+  s.y = Math.round((cy - s.h / 2) / g) * g;
+  return s;
+}
+function addShape(s) {
+  shapes.push(s);
+  selId = s.id;
+  commit(); render(); renderProps();
+}
+
+// ---------- 座標 ----------
+function toWorld(ev) {
+  const r = svg.getBoundingClientRect();
+  return { x: view.x + (ev.clientX - r.left) / view.s, y: view.y + (ev.clientY - r.top) / view.s };
+}
+function zoomAt(sx, sy, f) {
+  const ns = Math.max(0.015, Math.min(1.2, view.s * f));
+  const wx = view.x + sx / view.s, wy = view.y + sy / view.s;
+  view.s = ns;
+  view.x = wx - sx / ns; view.y = wy - sy / ns;
+  render();
+}
+function fit() {
+  const r = svg.getBoundingClientRect();
+  if (!shapes.length) { view.s = 0.1; view.x = -r.width / 2 / view.s; view.y = -r.height / 2 / view.s; render(); return; }
+  const b = bounds(shapes), m = 900;
+  view.s = Math.max(0.015, Math.min(0.4, Math.min(r.width / (b.w + m * 2), r.height / (b.h + m * 2))));
+  view.x = b.x + b.w / 2 - r.width / 2 / view.s;
+  view.y = b.y + b.h / 2 - r.height / 2 / view.s;
+  render();
+}
+function bounds(list) {
+  const x = Math.min(...list.map(s => s.x)), y = Math.min(...list.map(s => s.y));
+  const X = Math.max(...list.map(s => s.x + s.w)), Y = Math.max(...list.map(s => s.y + s.h));
+  return { x, y, w: X - x, h: Y - y };
+}
+
+// ---------- スナップ ----------
+function edges(exceptId) {
+  const xs = [], ys = [];
+  for (const s of shapes) {
+    if (s.id === exceptId) continue;
+    xs.push(s.x, s.x + s.w, s.x + s.w / 2);
+    ys.push(s.y, s.y + s.h, s.y + s.h / 2);
+  }
+  return { xs, ys };
+}
+// 位置 pos・サイズ size の区間を他図形の辺にスナップ。なければグリッドへ
+function snapSpan(pos, size, targets) {
+  const thr = 10 / view.s;
+  let best = null;
+  if (magnet) {
+    for (const t of targets) {
+      for (const off of [0, size, size / 2]) {
+        const d = t - (pos + off);
+        if (Math.abs(d) < thr && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, g: t };
+      }
+    }
+  }
+  if (best) return { v: pos + best.d, guide: best.g };
+  return { v: Math.round(pos / grid) * grid, guide: null };
+}
+function snapPoint(v, targets) {
+  const thr = 10 / view.s;
+  let best = null;
+  if (magnet) for (const t of targets) { const d = t - v; if (Math.abs(d) < thr && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, g: t }; }
+  if (best) return { v: best.g, guide: best.g };
+  return { v: Math.round(v / grid) * grid, guide: null };
+}
+
+// ---------- 操作 ----------
+const pointers = new Map();
+let drag = null;
+
+svg.addEventListener('pointerdown', ev => {
+  svg.setPointerCapture(ev.pointerId);
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (pointers.size === 2) {
+    // ピンチ開始：進行中のドラッグは確定
+    if (drag && drag.moved) commit();
+    const [a, b] = [...pointers.values()];
+    drag = { mode: 'pinch', dist: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    showGuides(); return;
+  }
+  const p = toWorld(ev);
+  const hEl = ev.target.closest('[data-handle]');
+  const sEl = ev.target.closest('[data-id]');
+  if (hEl && byId(selId)) {
+    const s = byId(selId);
+    drag = { mode: 'resize', dir: hEl.dataset.handle, start: { ...s }, p0: p, moved: false };
+  } else if (sEl) {
+    selId = sEl.dataset.id;
+    const s = byId(selId);
+    drag = { mode: 'move', start: { ...s }, p0: p, moved: false };
+    render(); renderProps();
+  } else {
+    if (selId) { selId = null; render(); renderProps(); }
+    drag = { mode: 'pan', c0: { x: ev.clientX, y: ev.clientY }, v0: { ...view } };
+    svg.classList.add('panning');
+  }
+});
+
+svg.addEventListener('pointermove', ev => {
+  if (!pointers.has(ev.pointerId)) return;
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (!drag) return;
+  if (drag.mode === 'pinch' && pointers.size >= 2) {
+    const [a, b] = [...pointers.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const r = svg.getBoundingClientRect();
+    view.x -= (mid.x - drag.mid.x) / view.s; view.y -= (mid.y - drag.mid.y) / view.s;
+    zoomAt(mid.x - r.left, mid.y - r.top, dist / drag.dist);
+    drag.dist = dist; drag.mid = mid;
+    return;
+  }
+  if (drag.mode === 'pan') {
+    view.x = drag.v0.x - (ev.clientX - drag.c0.x) / view.s;
+    view.y = drag.v0.y - (ev.clientY - drag.c0.y) / view.s;
+    render(); return;
+  }
+  const s = byId(selId); if (!s) return;
+  const p = toWorld(ev);
+  const dx = p.x - drag.p0.x, dy = p.y - drag.p0.y;
+  if (!drag.moved && Math.hypot(dx, dy) * view.s < 3) return;
+  drag.moved = true;
+  const E = edges(s.id), st = drag.start;
+  if (drag.mode === 'move') {
+    const sx = snapSpan(st.x + dx, st.w, E.xs), sy = snapSpan(st.y + dy, st.h, E.ys);
+    s.x = sx.v; s.y = sy.v;
+    showGuides(sx.guide, sy.guide);
+  } else {
+    const d = drag.dir;
+    let l = st.x, t = st.y, rr = st.x + st.w, b = st.y + st.h, gx = null, gy = null;
+    if (d.includes('w')) { const r2 = snapPoint(st.x + dx, E.xs); l = Math.min(r2.v, rr - MIN); gx = r2.guide; }
+    if (d.includes('e')) { const r2 = snapPoint(rr + dx, E.xs); rr = Math.max(r2.v, l + MIN); gx = r2.guide; }
+    if (d.includes('n')) { const r2 = snapPoint(st.y + dy, E.ys); t = Math.min(r2.v, b - MIN); gy = r2.guide; }
+    if (d.includes('s')) { const r2 = snapPoint(b + dy, E.ys); b = Math.max(r2.v, t + MIN); gy = r2.guide; }
+    s.x = l; s.y = t; s.w = rr - l; s.h = b - t;
+    showGuides(gx, gy);
+  }
+  render(); renderProps(true);
+});
+
+function endPointer(ev) {
+  pointers.delete(ev.pointerId);
+  if (!drag) return;
+  if (drag.mode === 'pinch') { if (pointers.size === 0) drag = null; return; }
+  if (drag.moved) commit();
+  drag = null;
+  svg.classList.remove('panning');
+  showGuides();
+}
+svg.addEventListener('pointerup', endPointer);
+svg.addEventListener('pointercancel', endPointer);
+
+svg.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  const r = svg.getBoundingClientRect();
+  // トラックパッドのピンチ（ctrl付き）とマウスホイールは拡大縮小、2本指スクロールは移動
+  if (ev.ctrlKey || (ev.deltaX === 0 && !ev.shiftKey)) {
+    zoomAt(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015) * (ev.deltaMode ? 30 : 1)));
+  } else {
+    view.x += ev.deltaX / view.s; view.y += ev.deltaY / view.s; render();
+  }
+}, { passive: false });
+
+// パレット：クリックで中央に配置、ドラッグで好きな位置へ
+(() => {
+  let pd = null;
+  $('palette').addEventListener('pointerdown', ev => {
+    const b = ev.target.closest('.item'); if (!b) return;
+    pd = { it: CATALOG[b.dataset.g].items[b.dataset.i], x: ev.clientX, y: ev.clientY, ghost: null };
+  });
+  window.addEventListener('pointermove', ev => {
+    if (!pd) return;
+    if (!pd.ghost && Math.hypot(ev.clientX - pd.x, ev.clientY - pd.y) > 8) {
+      pd.ghost = document.createElement('div');
+      pd.ghost.style.cssText = 'position:fixed;pointer-events:none;border:2px dashed #2b4c7e;background:rgba(43,76,126,.08);z-index:9';
+      document.body.appendChild(pd.ghost);
+    }
+    if (pd.ghost) {
+      const w = pd.it.w * view.s, h = pd.it.h * view.s;
+      Object.assign(pd.ghost.style, { left: ev.clientX - w / 2 + 'px', top: ev.clientY - h / 2 + 'px', width: w + 'px', height: h + 'px' });
+    }
+  });
+  window.addEventListener('pointerup', ev => {
+    if (!pd) return;
+    const { it, ghost } = pd; pd = null;
+    const r = svg.getBoundingClientRect();
+    if (ghost) {
+      ghost.remove();
+      if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return;
+      const p = toWorld(ev);
+      addShape(makeShape(it, p.x, p.y));
+    } else if (ev.target.closest('.item')) {
+      addShape(makeShape(it, view.x + r.width / 2 / view.s, view.y + r.height / 2 / view.s));
+    }
+  });
+  window.addEventListener('pointercancel', () => { if (pd && pd.ghost) pd.ghost.remove(); pd = null; });
+})();
+
+// ---------- 編集コマンド ----------
+function rotateSel() {
+  const s = byId(selId); if (!s) return;
+  const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+  s.rot = ((s.rot || 0) + 90) % 360;
+  [s.w, s.h] = [s.h, s.w];
+  s.x = Math.round((cx - s.w / 2) / 5) * 5; s.y = Math.round((cy - s.h / 2) / 5) * 5;
+  commit(); render(); renderProps();
+}
+function flipSel() { const s = byId(selId); if (!s) return; s.flip = !s.flip; commit(); render(); }
+function dupSel() {
+  const s = byId(selId); if (!s) return;
+  const c = { ...s, id: newId(), x: s.x + grid, y: s.y + grid };
+  addShape(c);
+}
+function delSel() {
+  if (!selId) return;
+  shapes = shapes.filter(s => s.id !== selId); selId = null;
+  commit(); render(); renderProps();
+}
+function nudge(dx, dy) {
+  const s = byId(selId); if (!s) return;
+  s.x += dx; s.y += dy; commit(); render(); renderProps(true);
+}
+
+document.addEventListener('keydown', ev => {
+  if (ev.target.matches('input, select, textarea')) return;
+  const mod = ev.ctrlKey || ev.metaKey;
+  if (mod && ev.key.toLowerCase() === 'z') { ev.preventDefault(); ev.shiftKey ? redo() : undo(); }
+  else if (mod && ev.key.toLowerCase() === 'y') { ev.preventDefault(); redo(); }
+  else if (mod && ev.key.toLowerCase() === 'd') { ev.preventDefault(); dupSel(); }
+  else if (ev.key === 'Delete' || ev.key === 'Backspace') { if (selId) { ev.preventDefault(); delSel(); } }
+  else if (ev.key === 'r' || ev.key === 'R') rotateSel();
+  else if (ev.key === 'f' || ev.key === 'F') flipSel();
+  else if (ev.key === 'Escape') { selId = null; render(); renderProps(); }
+  else if (ev.key.startsWith('Arrow') && selId) {
+    ev.preventDefault();
+    const st = ev.shiftKey ? 10 : grid;
+    nudge({ ArrowLeft: -st, ArrowRight: st }[ev.key] || 0, { ArrowUp: -st, ArrowDown: st }[ev.key] || 0);
+  }
+});
+
+// ---------- プロパティパネル ----------
+function renderProps(valuesOnly) {
+  const el = $('props');
+  const s = byId(selId);
+  el.classList.toggle('none', !s);
+  if (valuesOnly && s && $('pw')) {
+    if (document.activeElement !== $('pw')) $('pw').value = Math.round(s.w);
+    if (document.activeElement !== $('ph')) $('ph').value = Math.round(s.h);
+    if ($('pArea')) $('pArea').innerHTML = areaHTML(s);
+    return;
+  }
+  if (!s) {
+    el.innerHTML = `<h2>使い方</h2>
+      <p class="empty">左のパレットから部屋や建具を選んで置き、ドラッグで組み合わせます。図形を近づけると辺どうしが赤いガイドで吸着するので、隙間なく間取りが組めます。<br><br>図形をクリックすると、名前・寸法・色を変えられます。</p>
+      <div class="keys"><kbd>R</kbd> 90°回転　<kbd>F</kbd> 左右反転<br><kbd>Ctrl</kbd>+<kbd>D</kbd> 複製　<kbd>Del</kbd> 削除<br><kbd>←↑→↓</kbd> 移動（Shiftで10mm）<br>ホイール：拡大縮小　背景ドラッグ：移動</div>`;
+    return;
+  }
+  const isRoom = s.type === 'room';
+  el.innerHTML = `
+    <div class="field"><label for="pn">名前</label><input type="text" id="pn" value="${esc(s.name || '')}"></div>
+    <div class="row2">
+      <div class="field"><label for="pw">幅 mm</label><input type="number" id="pw" min="${MIN}" step="10" value="${Math.round(s.w)}"></div>
+      <div class="field"><label for="ph">奥行 mm</label><input type="number" id="ph" min="${MIN}" step="10" value="${Math.round(s.h)}"></div>
+    </div>
+    ${isRoom ? `<div class="area" id="pArea">${areaHTML(s)}</div>
+    <div class="field"><label>色</label><div class="swatches">${ROOM_COLORS.map(c => `<button class="swatch" data-c="${c}" style="background:${c}" aria-label="色 ${c}" aria-pressed="${s.color === c}"></button>`).join('')}</div></div>
+    <label class="check"><input type="checkbox" id="pout" ${s.outdoor ? 'checked' : ''}>延床面積に含めない</label>` : ''}
+    <div class="btnrow">
+      <button class="btn" id="bRot">↻ 回転</button>
+      <button class="btn" id="bFlip">⇋ 反転</button>
+      <button class="btn" id="bDup">複製</button>
+      <button class="btn danger" id="bDel">削除</button>
+    </div>`;
+  $('pn').addEventListener('input', e => { s.name = e.target.value; render(); });
+  $('pn').addEventListener('change', commit);
+  const sizeInput = (id, key) => $(id).addEventListener('change', e => {
+    const v = Math.max(MIN, Math.round(+e.target.value) || MIN);
+    s[key] = v; e.target.value = v; commit(); render(); renderProps(true);
+  });
+  sizeInput('pw', 'w'); sizeInput('ph', 'h');
+  el.querySelectorAll('.swatch').forEach(b => b.addEventListener('click', () => {
+    s.color = b.dataset.c; commit(); render(); renderProps();
+  }));
+  if ($('pout')) $('pout').addEventListener('change', e => { s.outdoor = e.target.checked; commit(); render(); renderProps(); });
+  $('bRot').onclick = rotateSel; $('bFlip').onclick = flipSel; $('bDup').onclick = dupSel; $('bDel').onclick = delSel;
+}
+function areaHTML(s) {
+  const m2 = areaM2(s);
+  return `<span><b>${(m2 / JO).toFixed(1)}</b> 帖</span><span>${m2.toFixed(2)} ㎡</span>`;
+}
+
+// ---------- 保存・読込・出力 ----------
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.tm); toast.tm = setTimeout(() => t.classList.remove('show'), 1800);
+}
+function download(name, blob) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+$('save').onclick = () => {
+  download('madori.json', new Blob([JSON.stringify({ version: 1, shapes }, null, 2)], { type: 'application/json' }));
+  toast('JSONを保存しました');
+};
+$('load').onclick = () => $('file').click();
+$('file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    const list = Array.isArray(data) ? data : data.shapes;
+    if (!Array.isArray(list)) throw new Error();
+    shapes = list.filter(s => SYM[s.type]); selId = null;
+    commit(); fit(); renderProps(); toast('読み込みました');
+  } catch (err) { toast('読み込めませんでした。間取りメーカーで保存したJSONを選んでください'); }
+  e.target.value = '';
+});
+$('png').onclick = () => {
+  if (!shapes.length) { toast('図形がありません'); return; }
+  const b = bounds(shapes), m = 600, k = 0.2;
+  const W = Math.ceil((b.w + m * 2) * k), H = Math.ceil((b.h + m * 2) * k);
+  const list = ordered();
+  const src = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${b.x - m} ${b.y - m} ${b.w + m * 2} ${b.h + m * 2}">` +
+    `<style>*{vector-effect:non-scaling-stroke}</style><rect x="${b.x - m}" y="${b.y - m}" width="${b.w + m * 2}" height="${b.h + m * 2}" fill="#fff"/>` +
+    list.map(shapeSVG).join('') + list.map(labelSVG).join('') + '</svg>';
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2;
+    const ctx = c.getContext('2d'); ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
+    c.toBlob(bl => { download('madori.png', bl); toast('PNGを保存しました'); });
+  };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(src);
+};
+let clearArmed = false;
+$('clear').onclick = () => {
+  if (!clearArmed) {
+    clearArmed = true; $('clear').textContent = 'もう一度押すと消去';
+    setTimeout(() => { clearArmed = false; $('clear').textContent = '全消去'; }, 2500);
+    return;
+  }
+  clearArmed = false; $('clear').textContent = '全消去';
+  shapes = []; selId = null; commit(); render(); renderProps(); toast('すべて消去しました（戻すで復元できます）');
+};
+$('sample').onclick = () => { shapes = sample(); selId = null; commit(); fit(); renderProps(); };
+$('undo').onclick = undo; $('redo').onclick = redo;
+$('fit').onclick = fit;
+$('zoomIn').onclick = () => { const r = svg.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); };
+$('zoomOut').onclick = () => { const r = svg.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); };
+$('gridSel').onchange = e => { grid = +e.target.value; };
+$('magnet').onchange = e => { magnet = e.target.checked; };
+
+// ---------- サンプル（2LDK・約50㎡） ----------
+function sample() {
+  const u = 910;
+  const room = (name, x, y, w, h, color, extra) => ({ id: newId(), type: 'room', name, x: x * u, y: y * u, w: w * u, h: h * u, rot: 0, flip: false, color, ...extra });
+  const item = (type, name, x, y, w, h, rot = 0, flip = false) => ({ id: newId(), type, name, x, y, w, h, rot, flip });
+  return [
+    room('LDK', 0, 0, 6, 4, '#fbe0c6'),
+    room('洋室', 6, 0, 4, 3, '#f6ead3'),
+    room('廊下', 6, 3, 1, 3, '#ebe7e0'),
+    room('洋室', 7, 3, 3, 3, '#f6ead3'),
+    room('浴室', 0, 4, 2, 2, '#d5e9f4'),
+    room('洗面所', 2, 4, 2, 2, '#d5e9f4'),
+    room('トイレ', 4, 4, 1, 2, '#d5e9f4'),
+    room('玄関', 5, 4, 1, 2, '#ebe7e0'),
+    room('バルコニー', 0, -1, 6, 1, '#ffffff', { outdoor: true }),
+    item('kitchen', 'キッチン', 910, 3640 - 650, 2550, 650, 180),
+    item('fridge', '冷蔵庫', 3460, 3640 - 700, 650, 700),
+    item('sofa', 'ソファ', 3200, 700, 1800, 850, 180),
+    item('table', 'テーブル', 1150, 1300, 1350, 800),
+    item('bed', 'シングル', 9100 - 1100, 150, 1000, 2000),
+    item('bed', 'シングル', 9100 - 2100, 5460 - 2100, 1000, 2000, 180),
+    item('bath', '浴槽', 110, 3640 + 110, 800, 1600, 90),
+    item('basin', '洗面台', 1820 + 100, 3640 + 50, 750, 550),
+    item('washer', '洗濯機', 3640 - 690, 3640 + 50, 640, 640),
+    item('toilet', '便器', 3640 + 230, 3640 + 60, 450, 750),
+    item('door', '玄関ドア', 4550, 4550, 910, 910),
+    item('door', '開き戸', 5460, 1820, 910, 910, 90),
+    item('sliding', '引き戸', 6370, 3640 - 60, 1820, 120),
+    item('window', '掃き出し窓', 910, -60, 3640, 120),
+    item('window', '窓', 6370, -60, 1820, 120),
+    item('window', '窓', 9100 - 60, 3640 + 455, 120, 1820, 90),
+  ];
+}
+
+// ---------- 起動 ----------
+buildPalette();
+let loaded = null;
+try { loaded = JSON.parse(localStorage.getItem('madori-v1') || 'null'); } catch (e) { loaded = null; }
+shapes = Array.isArray(loaded) && loaded.length ? loaded.filter(s => SYM[s.type]) : sample();
+commit();
+renderProps();
+requestAnimationFrame(fit);
+window.addEventListener('resize', render);
+})();
+</script>
+<!-- APP END -->
+</html>

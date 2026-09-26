@@ -14,6 +14,9 @@
 | J | template_j.html | 雑誌の表紙風（白地＋細い枠線＋号数） |
 | K | template_k.html | 調査レポート風（見出し＋控えめな棒グラフ） |
 | L | template_l.html | チャットの会話風（質問と答えの吹き出し） |
+| J-1 | template_j1.html | J案の派生：生成り×紺、「売れる？」に下線 |
+| J-2 | template_j2.html | J案の派生：文芸誌風（二重枠・明朝体・深緑） |
+| J-3 | template_j3.html | J案の派生：モダン太枠（黒帯の誌名・赤いラベル） |
 
 ## 書き出し方
 

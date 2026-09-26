@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/zen-maru-gothic.css">
+<style>
+/* B案：左寄せ＋スタンプ一覧（1280×670） */
+:root{--bg:#ffffff;--ink:#26292b;--sub:#8f9493;--accent:#2f9b8f;--tile:#f1f4f3}
+*{margin:0;box-sizing:border-box}
+body{width:1280px;height:670px;background:var(--bg);font-family:"Zen Maru Gothic",sans-serif;color:var(--ink);position:relative;overflow:hidden}
+.left{position:absolute;left:150px;top:0;bottom:0;display:grid;align-content:center;gap:28px}
+.series{font-size:22px;font-weight:700;letter-spacing:.16em;color:var(--sub)}
+.series b{color:var(--accent);margin-left:.4em}
+h1{font-size:74px;font-weight:900;line-height:1.3;letter-spacing:.03em}
+h1 em{font-style:normal;color:var(--accent)}
+p{font-size:26px;font-weight:700;color:var(--sub);letter-spacing:.08em}
+.grid{position:absolute;right:150px;top:50%;transform:translateY(-50%);display:grid;grid-template-columns:repeat(3,104px);gap:18px}
+.t{width:104px;height:104px;border-radius:26px;background:var(--tile);position:relative}
+.t i{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--ink);top:38px}
+.t i:first-child{left:32px}.t i:nth-child(2){right:32px}
+.t s{position:absolute;left:37px;top:56px;width:30px;height:15px;border:5px solid var(--ink);border-top:none;border-radius:0 0 18px 18px}
+.t.hit{background:var(--accent);transform:scale(1.12) rotate(-6deg);box-shadow:0 10px 24px rgba(47,155,143,.25)}
+.t.hit i{background:#fff}.t.hit s{border-color:#fff}
+.t.o s{width:18px;height:18px;left:43px;top:56px;border:5px solid var(--ink);border-radius:50%}
+.t.f s{top:62px;height:0;border-bottom:5px solid var(--ink);border-radius:0}
+</style></head><body>
+<div class="left">
+  <div class="series">AIチャレンジ365<b>Day 10</b></div>
+  <h1>フォロワー0でも、<br><em>売れる？</em></h1>
+  <p>人気LINEスタンプの共通点</p>
+</div>
+<div class="grid">
+  <div class="t o"><i></i><i></i><s></s></div><div class="t f"><i></i><i></i><s></s></div><div class="t"><i></i><i></i><s></s></div>
+  <div class="t f"><i></i><i></i><s></s></div><div class="t hit"><i></i><i></i><s></s></div><div class="t o"><i></i><i></i><s></s></div>
+  <div class="t"><i></i><i></i><s></s></div><div class="t o"><i></i><i></i><s></s></div><div class="t f"><i></i><i></i><s></s></div>
+</div>
+</body></html>

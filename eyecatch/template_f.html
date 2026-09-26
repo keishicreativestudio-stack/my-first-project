@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/klee-one.css">
+<style>
+/* F案：調査ノート風（1280×670） */
+:root{--paper:#fdfdfb;--gridc:#d9e4ec;--ink:#263241;--mark:#ffe45c;--sub:#6a7685;--pen:#e0584a}
+*{margin:0;box-sizing:border-box}
+body{width:1280px;height:670px;font-family:"Klee One",cursive;color:var(--ink);position:relative;overflow:hidden;background:#dfe6ea}
+.paper{position:absolute;inset:30px 40px;background:var(--paper);border-radius:6px;box-shadow:0 2px 0 rgba(0,0,0,.05);
+  background-image:linear-gradient(var(--gridc) 1px,transparent 1px),linear-gradient(90deg,var(--gridc) 1px,transparent 1px);background-size:32px 32px;background-position:15px 15px}
+.tape{position:absolute;top:14px;width:150px;height:40px;background:rgba(255,228,92,.7);transform:rotate(-4deg)}
+.tape.r{right:120px;transform:rotate(5deg);background:rgba(224,88,74,.35)}
+.tape.l{left:120px}
+.main{position:absolute;inset:30px 40px;display:grid;place-items:center;align-content:center;gap:30px}
+.label{font-size:24px;color:var(--sub);letter-spacing:.12em;border:2px solid var(--sub);border-radius:30px;padding:4px 22px}
+h1{font-size:74px;font-weight:600;line-height:1.45;text-align:center;letter-spacing:.04em}
+h1 span{background:linear-gradient(transparent 58%,var(--mark) 58% 92%,transparent 92%)}
+.note{font-size:28px;color:var(--pen);transform:rotate(-3deg)}
+</style></head><body>
+<div class="paper"></div>
+<div class="tape l"></div><div class="tape r"></div>
+<div class="main">
+  <div class="label">AIチャレンジ365 ｜ Day 10 調査メモ</div>
+  <h1>フォロワーなしでも、<br><span>スタンプは売れる？</span></h1>
+  <div class="note">→ 人気スタンプの共通点を調べてみた</div>
+</div>
+</body></html>

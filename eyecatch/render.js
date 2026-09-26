@@ -1,6 +1,6 @@
 // 使い方: node render.js  → 各テンプレートを 1280×670 と 1920×1005 で書き出す
 const {chromium}=require('/opt/node22/lib/node_modules/playwright');
-const jobs=[['template.html','day10_a'],['template_b.html','day10_b'],['template_c.html','day10_c'],['template_d.html','day10_d'],['template_e.html','day10_e'],['template_f.html','day10_f'],['template_g.html','day10_g'],['template_h.html','day10_h'],['template_i.html','day10_i']];
+const jobs=[['template.html','day10_a'],['template_b.html','day10_b'],['template_c.html','day10_c'],['template_d.html','day10_d'],['template_e.html','day10_e'],['template_f.html','day10_f'],['template_g.html','day10_g'],['template_h.html','day10_h'],['template_i.html','day10_i'],['template_j.html','day10_j'],['template_k.html','day10_k'],['template_l.html','day10_l']];
 (async()=>{const b=await chromium.launch();
 for(const [tpl,out] of jobs)for(const [s,size] of [[1,'1280x670'],[1.5,'1920x1005']]){
 const p=await b.newPage({viewport:{width:1280,height:670},deviceScaleFactor:s});

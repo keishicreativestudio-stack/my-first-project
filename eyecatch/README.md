@@ -11,6 +11,9 @@
 | G | template_g.html | 大きな数字（黄色一色＋画面いっぱいの「0」） |
 | H | template_h.html | 縦書き（白地に明朝体） |
 | I | template_i.html | Q&Aカード（「Q.」で問いかけ、「A.」で予告） |
+| J | template_j.html | 雑誌の表紙風（白地＋細い枠線＋号数） |
+| K | template_k.html | 調査レポート風（見出し＋控えめな棒グラフ） |
+| L | template_l.html | チャットの会話風（質問と答えの吹き出し） |
 
 ## 書き出し方
 

@@ -8,6 +8,9 @@
 | D | template_d.html | 人生論シリーズ風（生成り色の背景＋縦線＋太い黒文字） |
 | E | template_e.html | 静かな明朝体（光の差す淡い背景） |
 | F | template_f.html | 調査ノート風（方眼紙＋手書き風の文字＋マーカー） |
+| G | template_g.html | 大きな数字（黄色一色＋画面いっぱいの「0」） |
+| H | template_h.html | 縦書き（白地に明朝体） |
+| I | template_i.html | Q&Aカード（「Q.」で問いかけ、「A.」で予告） |
 
 ## 書き出し方
 

@@ -12,5 +12,5 @@ def fetch(family,weights,out):
   with ThreadPoolExecutor(12) as ex: list(ex.map(g,urls))
   for x in urls: css=css.replace(x,x.rsplit("/",1)[1])
   open(f"fonts/{out}.css","w").write(css);print(out,len(urls))
-for fam,w,out in [("Zen Maru Gothic","500;700;900","zen-maru-gothic"),("Zen Kaku Gothic New","500;900","zen-kaku-gothic-new"),("Zen Old Mincho","500;700","zen-old-mincho"),("Klee One","600","klee-one")]:
+for fam,w,out in [("Zen Maru Gothic","500;700;900","zen-maru-gothic"),("Zen Kaku Gothic New","500;900","zen-kaku-gothic-new"),("Zen Old Mincho","500;700","zen-old-mincho"),("Klee One","600","klee-one"),("Dela Gothic One","400","dela-gothic-one")]:
   fetch(fam,w,out)

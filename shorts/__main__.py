@@ -32,7 +32,16 @@ def post_text(sc: dict) -> str:
     return f"{cap}\n\n{tags}".strip() + "\n"
 
 
-def build_one(path: str, brand: dict, out_dir: str, with_bgm: bool) -> str:
+def write_posts(sc: dict, out_dir: str, name: str) -> None:
+    """投稿文を書き出す。captions: {tiktok: {...}, instagram: {...}} があればSNSごとに分ける"""
+    with open(os.path.join(out_dir, name + ".txt"), "w", encoding="utf-8") as f:
+        f.write(post_text(sc))
+    for sns, c in (sc.get("captions") or {}).items():
+        with open(os.path.join(out_dir, f"{name}.{sns}.txt"), "w", encoding="utf-8") as f:
+            f.write(post_text(c))
+
+
+def build_one(path: str, brand: dict, out_dir: str, with_bgm: bool, text_only: bool = False) -> str:
     with open(path, encoding="utf-8") as f:
         sc = yaml.safe_load(f)
     kind = sc.get("type", "tips")
@@ -47,17 +56,18 @@ def build_one(path: str, brand: dict, out_dir: str, with_bgm: bool) -> str:
     else:
         header_label = brand["series_name"] + (f"  #{sc['episode']}" if sc.get("episode") else "")
         header = text.pill(header_label, 40, c["text"], "#00000088")
-    scenes = TEMPLATES[kind](sc, brand)
-
     name = os.path.splitext(os.path.basename(path))[0]
     out = os.path.join(out_dir, name + ".mp4")
+    write_posts(sc, out_dir, name)
+    if text_only:
+        return out
+    scenes = TEMPLATES[kind](sc, brand)
+
     bgm = brand.get("bgm") or None
     bgm = sc.get("bgm", bgm) or None
     render(scenes, out, Overlay(header, accent, progress=sc.get("progress_bar", True)), with_bgm=with_bgm,
            bgm_file=bgm, bgm_volume=float(sc.get("bgm_volume", brand.get("bgm_volume", 0.35))),
            bgm_bpm=float(sc.get("bpm", 100)))
-    with open(os.path.join(out_dir, name + ".txt"), "w", encoding="utf-8") as f:
-        f.write(post_text(sc))
     return out
 
 
@@ -67,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--brand", default="brand.yaml")
     ap.add_argument("--out", default="output")
     ap.add_argument("--no-bgm", action="store_true", help="BGMを入れない(効果音のみ)")
+    ap.add_argument("--text-only", action="store_true", help="動画は作らず投稿文だけ書き出す")
     a = ap.parse_args(argv)
 
     brand = load_brand(a.brand)
@@ -83,8 +94,8 @@ def main(argv: list[str] | None = None) -> int:
     os.makedirs(a.out, exist_ok=True)
     for p in files:
         t0 = time.time()
-        out = build_one(p, brand, a.out, not a.no_bgm)
-        print(f"✔ {out}  ({time.time() - t0:.1f}秒)")
+        out = build_one(p, brand, a.out, not a.no_bgm, a.text_only)
+        print(f"✔ {out if not a.text_only else p + ' の投稿文'}  ({time.time() - t0:.1f}秒)")
     return 0
 
 

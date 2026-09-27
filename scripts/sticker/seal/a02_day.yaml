@@ -1,0 +1,38 @@
+# B:1日型 ― 会社員の1日をスタンプだけで描く(このスタンプならではの型)
+type: sticker
+variant: tempo
+# ▼スタンプ名(title)と検索ワード(search)は仮です。実際の名前に書き換えてください
+title: "限界会社員\n*アザラシ*"
+search: "限界アザラシ"
+stickers_dir: assets/stickers/seal
+count: 16
+cta_sub: "*このアザラシ*が目印！\nプロフのリンクからも買えます"
+main_sticker: 16.png
+bpm: 120
+lineup_sec: 2.6
+lineup_text: "仕事で使える\n*敬語*16種"
+theme:
+  bg: "#EEF2F7"
+  bg2: "#E2E8F1"
+  pattern: "#FFFFFF"
+  text: "#1F2A44"
+  accent: "#E2553A"
+  header: "#3C4E74"
+  chat_bg: "#FAFBFD"
+  them: "#ECEEF2"
+  me: "#FFE3DA"
+
+hook: "限界会社員の\n*1日*"
+hook_sticker: 09.png          # もう帰りたい
+tempo_tag: "限界会社員の1日"
+
+items:   # 1個 = 2拍(約1秒)
+  - {label: "*8:50* 出社", sticker: 01.png}            # おはようございます…
+  - {label: "*9:30* 急な依頼", sticker: 02.png}        # 承知しました…
+  - {label: "*11:00* 資料チェック", sticker: 03.png}   # 確認します
+  - {label: "*14:00* 会議で", sticker: 11.png}         # 聞いてません
+  - {label: "*16:00* 集中力切れ", sticker: 09.png}     # もう帰りたい
+  - {label: "*17:55* 定時前", sticker: 12.png}         # 今日中ですか…？
+  - {label: "*18:30* 覚悟", sticker: 14.png}           # やるしかない
+  - {label: "*21:00* やっと", sticker: 15.png}         # 終わったーー！
+  - {label: "*21:01*", sticker: 16.png}                # お先に失礼します！

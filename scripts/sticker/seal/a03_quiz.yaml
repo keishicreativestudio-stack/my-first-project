@@ -1,0 +1,30 @@
+# C:クイズ型 ― 今の仕事メンタルを番号でコメントしてもらう(短い・ループ向け)
+type: sticker
+variant: quiz
+# ▼スタンプ名(title)と検索ワード(search)は仮です。実際の名前に書き換えてください
+title: "限界会社員\n*アザラシ*"
+search: "限界アザラシ"
+stickers_dir: assets/stickers/seal
+count: 16
+cta_sub: "*このアザラシ*が目印！\nプロフのリンクからも買えます"
+main_sticker: 09.png
+bpm: 100
+progress_bar: false
+show_lineup: false
+cta_sec: 2.8
+theme:
+  bg: "#EEF2F7"
+  bg2: "#E2E8F1"
+  pattern: "#FFFFFF"
+  text: "#1F2A44"
+  accent: "#E2553A"
+  header: "#3C4E74"
+  chat_bg: "#FAFBFD"
+  them: "#ECEEF2"
+  me: "#FFE3DA"
+
+hook: "今のあなたの\n*仕事メンタル*は？"
+quiz:
+  choices: [09.png, 10.png, 14.png, 15.png]  # もう帰りたい / 無理です / やるしかない / 終わったーー！
+  ask: "コメントで番号おしえて！"
+  sec: 5.0

@@ -1,0 +1,36 @@
+# D:建前と本音型 ― 同じ場面の「建前」と「本音」を交互に見せる(ギャップでくり返し見られる)
+type: sticker
+variant: tempo
+# ▼スタンプ名(title)と検索ワード(search)は仮です。実際の名前に書き換えてください
+title: "限界会社員\n*アザラシ*"
+search: "限界アザラシ"
+stickers_dir: assets/stickers/seal
+count: 16
+cta_sub: "*このアザラシ*が目印！\nプロフのリンクからも買えます"
+main_sticker: 10.png
+bpm: 120
+lineup_sec: 2.6
+lineup_text: "建前も本音も\n*敬語*で16種"
+theme:
+  bg: "#EEF2F7"
+  bg2: "#E2E8F1"
+  pattern: "#FFFFFF"
+  text: "#1F2A44"
+  accent: "#E2553A"
+  header: "#3C4E74"
+  chat_bg: "#FAFBFD"
+  them: "#ECEEF2"
+  me: "#FFE3DA"
+
+hook: "会社員の\n*建前*と*本音*"
+hook_sticker: 08.png          # よろしくお願いします
+
+items:
+  - {label: "建前", sticker: 02.png}          # 承知しました…
+  - {label: "*本音*", sticker: 10.png}        # 無理です
+  - {label: "建前", sticker: 03.png}          # 確認します
+  - {label: "*本音*", sticker: 13.png}        # 一旦持ち帰ります
+  - {label: "建前", sticker: 08.png}          # よろしくお願いします
+  - {label: "*本音*", sticker: 09.png}        # もう帰りたい
+  - {label: "でも最後は", sec: 1.0, size: 120}
+  - {label: "", sticker: 16.png}              # お先に失礼します！

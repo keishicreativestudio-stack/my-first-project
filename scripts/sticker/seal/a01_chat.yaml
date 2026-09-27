@@ -1,0 +1,49 @@
+# A:トーク型 ― 敬語なので上司にも送れる、を職場の会話で見せる
+type: sticker
+variant: chat
+# ▼スタンプ名(title)と検索ワード(search)は仮です。実際の名前に書き換えてください
+title: "限界会社員\n*アザラシ*"
+search: "限界アザラシ"
+stickers_dir: assets/stickers/seal
+count: 16
+cta_sub: "*このアザラシ*が目印！\nプロフのリンクからも買えます"
+main_sticker: 02.png
+bpm: 108
+lineup_sec: 2.6
+lineup_text: "仕事で使える\n*敬語*16種"
+cta_sec: 3.2
+theme:
+  bg: "#EEF2F7"
+  bg2: "#E2E8F1"
+  pattern: "#FFFFFF"
+  text: "#1F2A44"
+  accent: "#E2553A"
+  header: "#3C4E74"
+  chat_bg: "#FAFBFD"
+  them: "#ECEEF2"
+  me: "#FFE3DA"
+
+hook: "*敬語*だから\n上司にも送れる\n限界スタンプ"
+hook_sticker: 02.png          # 承知しました…
+
+chats:
+  - caption: "*朝イチ*の業務連絡"
+    partner: "課長"
+    messages:
+      - {from: them, text: "今日の会議、\n9時からに変更です"}
+      - {from: me, sticker: 02.png, time: "8:12"}      # 承知しました…
+  - caption: "*定時直前*の無茶ぶり"
+    partner: "課長"
+    messages:
+      - {from: them, text: "この資料、\n今日中にお願いできる？"}
+      - {from: me, sticker: 12.png, time: "17:52"}     # 今日中ですか…？
+  - caption: "*進捗*を聞かれた時"
+    partner: "課長"
+    messages:
+      - {from: them, text: "例の件、進捗どうですか？"}
+      - {from: me, sticker: 07.png, time: "19:40"}     # 少々お待ちください
+  - caption: "で、*同期*に聞かれる"
+    partner: "同期のさき"
+    messages:
+      - {from: them, text: "そのアザラシ何？\n私も欲しいんだけど"}
+      - {from: me, text: "「限界アザラシ」で\n検索してみて！"}

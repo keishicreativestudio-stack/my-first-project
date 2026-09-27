@@ -6,6 +6,7 @@ title: "まんまるモフ雲の\n*感情天気予報*"
 search: "モフ雲"
 stickers_dir: assets/stickers/kumo
 count: 16
+cta_sub: "*この雲*が目印！\nプロフのリンクからも買えます"   # 検索結果で見つけてもらう一言
 main_sticker: 16.png
 bpm: 100
 progress_bar: false

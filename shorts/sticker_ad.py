@@ -282,7 +282,7 @@ def cta_scene(sc: dict, th: dict, st: Stickers, bg) -> Scene:
         ImageDraw.Draw(shop).rounded_rectangle((0, 0, shop.width - 1, shop.height - 1), radius=44, fill=th["accent"])
         shop.alpha_composite(t, (48, 22))
     s.layers.append(Layer(shop, (W - shop.width) // 2, 1140, start=0.45, anim="pop", sfx="pop", idle="pulse"))
-    sub = render_text(sc.get("cta_sub", "プロフのリンクからもすぐ買えます"), 46, th["text"], th["accent"], outline="#FFFFFF",
+    sub = render_text(sc.get("cta_sub", "プロフのリンクからもすぐ買えます"), 52, th["text"], th["accent"], outline="#FFFFFF",
                       outline_px=6)
     s.layers.append(Layer(sub, (W - sub.width) // 2, 1160 + shop.height + 20, start=0.8, anim="fade", sfx=None))
     return s

@@ -1,9 +1,9 @@
 # D:ギャップ型 ― 普通のあいさつスタンプ…と見せかけて天気で気分を表すスタンプ(意外性でくり返し見られる)
 type: sticker
 variant: tempo
-# ▼スタンプ名と検索ワードは仮です。実際の名前に書き換えてください
-title: "無表情なくもの\n*心の天気*スタンプ"
-search: "くもの心の天気"
+# ▼検索ワードは、LINEのスタンプショップで実際に検索して一番上に出る言葉にする
+title: "まんまるモフ雲の\n*感情天気予報*"
+search: "モフ雲"
 stickers_dir: assets/stickers/kumo
 count: 16
 main_sticker: 09.png
@@ -34,10 +34,10 @@ items:
   - {label: "", sticker: 14.png}
   - {label: "", sticker: 13.png}
 
-lineup_text: "あいさつ8種＋\n*心の天気*8種"
+lineup_text: "あいさつ8種＋\n*感情天気*8種"
 
 caption: |
   ふつうのあいさつスタンプ…と見せかけて、
   本音を天気で伝えられるスタンプです☁️
-  全16種、LINEスタンプショップで「くもの心の天気」で検索！
+  全16種、LINEスタンプショップで「モフ雲」で検索！
 hashtags: [LINEスタンプ, LINEスタンプ紹介, クリエイターズスタンプ, 本音, ギャップ, メンタル, 雲]

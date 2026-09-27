@@ -48,6 +48,11 @@ HASHTAGS = [
 ]
 # 「110部突破」「50部届きました」など、作者が自己申告している販売部数
 SALES_RE = re.compile(r"(\d[\d,]*)\s*部\s*(?:突破|達成|売れ|販売|届|購入|到達)")
+# 販売部数・収益額・フォロワー増加など「実績アピール」の表記
+PROOF_RE = re.compile(
+    r"\d[\d,.]*\s*部|完売|\d[\d,.]*\s*(?:人|万|円)?\s*(?:突破|達成)|月\s*\d[\d,.]*\s*万|\d[\d,.]*\s*万円"
+    r"|\d[\d,]*\s*円(?:稼|の収益|の報酬|を売り上げ)|(?:収益|売上|報酬|総額|利益|月収)[^\n]{0,8}?\d[\d,]*\s*円|\d[\d,.]*\s*(?:万|億)[^\n]{0,4}?(?:売り?上げ|稼)|万インプ"
+    r"|フォロワー\s*\d[\d,]*\s*人?\s*(?:増|→)|\d[\d,]*\s*→\s*\d|0\s*→\s*1|ゼロイチ")
 
 
 def get_json(path):
@@ -134,6 +139,7 @@ def fetch_detail(key):
         "paid_images": n.get("remained_image_num") or 0,
         "paid_files": n.get("remained_file_num") or 0,
         "sales_claims": sales_claims,
+        "proof_claims": proof_claims((n.get("name") or ""), free_text),
         "creator": {
             "urlname": u.get("urlname"),
             "nickname": u.get("nickname"),
@@ -146,8 +152,19 @@ def fetch_detail(key):
     }
 
 
+def proof_claims(title, free_text):
+    return {"title": PROOF_RE.findall(title), "free": PROOF_RE.findall(free_text)}
+
+
+def is_no_proof(a):
+    """タイトル・無料パート・作者プロフィールのどこにも、販売部数・収益額などの実績アピールがない記事。"""
+    p = a.get("proof_claims") or proof_claims(a["title"], a["free_text"])
+    return not p["title"] and not p["free"] and not PROOF_RE.search(a["creator"].get("profile") or "")
+
+
 def score(a, prev):
-    """売れ行きの推定値。購入者しか付けられないレビュー数を最重視する。"""
+    """売れ行きの推定値。購入者しか付けられないレビュー数を最重視する。
+    自己申告の販売部数は加点しない（実績アピールのない記事を公平に評価するため）。"""
     days = 1.0
     try:
         pub = dt.datetime.fromisoformat(a["publish_at"])
@@ -157,9 +174,8 @@ def score(a, prev):
     a["days_since_publish"] = round(days, 1)
     a["likes_per_day"] = round(a["like_count"] / days, 2)
     a["like_growth_1d"] = a["like_count"] - prev["like_count"] if prev else None
-    claimed = max(a["sales_claims"]) if a["sales_claims"] else 0
     sales = (a["rater_count"] * 10 + a["like_count"] + a["comment_count"] * 2
-             + min(claimed, 1000) * 0.3 + (a["like_growth_1d"] or 0) * 2)
+             + (a["like_growth_1d"] or 0) * 2)
     a["sales_score"] = round(sales * math.log10(a["price"] + 10) / 2, 1)
     f = a["creator"]["followers"]
     a["underdog_score"] = round(a["sales_score"] / math.sqrt(f + 50), 2)
@@ -206,31 +222,37 @@ def row(a, i):
 
 def write_report(today, arts, top, max_followers, path):
     by_sales = sorted(arts, key=lambda a: -a["sales_score"])[:top]
-    small = [a for a in arts if a["creator"]["followers"] <= max_followers]
-    by_underdog = sorted(small, key=lambda a: -a["underdog_score"])[:top]
+    # 写真集・画像販売など文章がほぼない商品は分析対象外
+    small = [a for a in arts if a["creator"]["followers"] <= max_followers and a["free_chars"] + a["paid_chars"] >= 300]
+    no_proof = [a for a in small if is_no_proof(a)]
+    by_no_proof = sorted(no_proof, key=lambda a: -a["underdog_score"])[:top]
+    by_proof = sorted([a for a in small if not is_no_proof(a)], key=lambda a: -a["underdog_score"])[:10]
     head = ("| # | 記事 | 価格 | スキ | 購入者レビュー | フォロワー / フォロー | 無料文字数 → 有料文字数 | 売れ行き推定 | 少フォロワー指数 |\n"
             "|---|---|---|---|---|---|---|---|---|")
-    prices = sorted(a["price"] for a in arts)
-    med = prices[len(prices) // 2] if prices else 0
     tag_count = {}
-    for a in by_underdog:
+    for a in by_no_proof:
         for t in a["hashtags"]:
             tag_count[t] = tag_count.get(t, 0) + 1
     top_tags = sorted(tag_count.items(), key=lambda x: -x[1])[:20]
     L = [f"# note 売れている有料記事リサーチ {today}", "",
+         "**重点テーマ: 販売部数や収益などの「実績」を書いていないのに、フォロワーが少なくても売れている記事**", "",
          f"- 調査した有料記事: **{len(arts)} 本**（{len(HASHTAGS)} ハッシュタグの人気順フィードから収集）",
-         f"- 価格の中央値: ¥{med:,}",
-         f"- フォロワー {max_followers:,} 人以下の作者の記事: {len(small)} 本", "",
-         "> 売れ行き推定 = 購入者レビュー数×10 + スキ + コメント×2 + 本文中の販売実績表記 + 前日比のスキ増加×2 を価格で補正。",
-         "> 少フォロワー指数 = 売れ行き推定 ÷ √(フォロワー+50)。フォロワーが少ないのに売れているほど高い。",
-         "> 購入数そのものは note が公開していないため、すべて推定値です。", "",
-         f"## 1. フォロワーが少なくても売れている有料記事（フォロワー {max_followers:,} 人以下）", "", head]
-    L += [row(a, i + 1) for i, a in enumerate(by_underdog)]
-    L += ["", "## 2. 売れ行き推定の総合ランキング", "", head]
+         f"- 価格の中央値: ¥{median([a['price'] for a in arts]):,}",
+         f"- フォロワー {max_followers:,} 人以下の作者の記事: {len(small)} 本（うち実績アピールなし {len(no_proof)} 本）", "",
+         "> 実績アピール = タイトル・無料パート・作者プロフィールのいずれかに「〇部突破」「完売」「月〇万円」「収益〇円」「フォロワー〇人達成」「0→1」などの表記があること。",
+         "> 売れ行き推定 = 購入者レビュー数×10 + スキ + コメント×2 + 前日比のスキ増加×2 を価格で補正（自己申告の部数は加点しない）。",
+         "> 少フォロワー指数 = 売れ行き推定 ÷ √(フォロワー+50)。購入数は note が公開していないため、すべて推定値です。", "",
+         f"## 1. 実績アピールなしで売れている有料記事（フォロワー {max_followers:,} 人以下）", "", head]
+    L += [row(a, i + 1) for i, a in enumerate(by_no_proof)]
+    L += ["", "## 2. 参考: 実績アピールありで売れている記事（フォロワー {:,} 人以下・上位10）".format(max_followers), "", head]
+    L += [row(a, i + 1) for i, a in enumerate(by_proof)]
+    L += ["", "## 3. 参考: 売れ行き推定の総合ランキング（フォロワー数・実績表記を問わない）", "", head]
     L += [row(a, i + 1) for i, a in enumerate(by_sales)]
-    weak = [a for a in arts if a["rater_count"] == 0 and a["like_count"] < 10]
-    L += ["", "## 2.5 売れている記事と売れていない記事の比較（中央値）", "",
-          "| 指標 | 少フォロワー上位 | 全有料記事 | 反応なし記事（レビュー0・スキ10未満） |", "|---|---|---|---|"]
+    # 公開直後の記事は反応がまだ付いていないだけなので除き、同じ少フォロワー層の下位30本と比べる
+    weak = sorted([a for a in small if a["days_since_publish"] >= 2], key=lambda a: a["underdog_score"])[:30]
+    groups = [by_no_proof, by_proof, weak]
+    L += ["", "## 4. 比較（中央値）", "",
+          "| 指標 | 実績なしで売れている上位 | 実績ありで売れている上位 | 売れ行き下位30（同じ少フォロワー層・公開2日以上） |", "|---|---|---|---|"]
     for label, fn in [
         ("本数", len),
         ("価格", lambda g: f"¥{median([a['price'] for a in g]):,}"),
@@ -239,30 +261,31 @@ def write_report(today, arts, top, max_followers, path):
         ("有料パート画像数", lambda g: median([a["paid_images"] for a in g])),
         ("作者フォロワー数", lambda g: f"{median([a['creator']['followers'] for a in g]):,}"),
         ("作者の総記事数", lambda g: median([a["creator"]["note_count"] for a in g])),
-        ("タイトルに「〇部」表記", lambda g: pct(g, lambda a: re.search(r"\d+\s*部", a["title"]))),
+        ("公開からの日数", lambda g: median([a["days_since_publish"] for a in g])),
         ("タイトルに【】", lambda g: pct(g, lambda a: "【" in a["title"])),
+        ("タイトルに数字", lambda g: pct(g, lambda a: re.search(r"\d", a["title"]))),
         ("見出し画像あり", lambda g: pct(g, lambda a: a["eyecatch"])),
     ]:
-        L.append(f"| {label} | {fn(by_underdog) if by_underdog else '-'} | {fn(arts) if arts else '-'} | {fn(weak) if weak else '-'} |")
-    L += ["", "## 3. 少フォロワー上位記事に多いハッシュタグ", "",
+        L.append("| " + label + " | " + " | ".join(str(fn(g)) if g else "-" for g in groups) + " |")
+    L += ["", "## 5. 実績なし上位記事に多いハッシュタグ", "",
           ", ".join(f"{t}（{n}）" for t, n in top_tags) or "なし", "",
-          "## 4. 少フォロワー上位記事の詳細", ""]
-    for i, a in enumerate(by_underdog[:15]):
+          "## 6. 実績アピールなしで売れている記事の詳細", ""]
+    for i, a in enumerate(by_no_proof[:15]):
         c = a["creator"]
         L += [f"### {i + 1}. {a['title']}", "",
               f"- URL: {a['url']}",
-              f"- 作者: {c['nickname']}（@{c['urlname']}）フォロワー {c['followers']:,} / フォロー {c['following']:,} / 記事数 {c['note_count']}",
+              f"- 作者: {c['nickname']}（@{c['urlname']}）フォロワー {c['followers']:,} / フォロー {c['following']:,} / 記事数 {c['note_count']} / note開始 {(c.get('created_at') or '')[:10]}",
+              f"- 作者プロフィール: {(c.get('profile') or '').replace(chr(10), ' ')[:150]}",
               f"- 価格 ¥{a['price']:,} / スキ {a['like_count']} / 購入者レビュー {a['rater_count']} / コメント {a['comment_count']} / 公開 {a['publish_at'][:10]}（{a['days_since_publish']}日前）",
               f"- 前日比スキ増加: {a['like_growth_1d'] if a['like_growth_1d'] is not None else '初登場'}",
               f"- 無料パート {a['free_chars']:,} 字（画像 {a['free_image_count']}）→ 有料パート {a['paid_chars']:,} 字 / 画像 {a['paid_images']} / 添付ファイル {a['paid_files']}",
-              f"- 本文中の販売実績表記: {a['sales_claims'] or 'なし'}",
               f"- ハッシュタグ: {' '.join(a['hashtags'])}",
               f"- 見出し画像: {a['eyecatch'] or 'なし'}",
               f"- 無料パートの見出し: {' / '.join(a['free_headings']) or 'なし'}", "",
               "<details><summary>無料パート冒頭（600字）</summary>", "",
               "```", a["free_text"][:600], "```", "</details>", ""]
     path.write_text("\n".join(L) + "\n")
-    return by_underdog, by_sales
+    return by_no_proof, by_sales
 
 
 def save_articles(path, today, arts, keep_full):
@@ -283,6 +306,8 @@ def main():
 
     if args.report_only:
         arts = json.loads((ROOT / "data" / args.report_only / "articles.json").read_text())["articles"]
+        for a in arts:
+            score(a, None)
         write_report(args.report_only, arts, args.top, args.max_followers, ROOT / "reports" / f"{args.report_only}.md")
         return
 
@@ -306,13 +331,13 @@ def main():
 
     (ROOT / "reports").mkdir(exist_ok=True)
     report = ROOT / "reports" / f"{today}.md"
-    by_underdog, by_sales = write_report(today, arts, args.top, args.max_followers, report)
-    save_articles(out / "articles.json", today, arts, by_underdog[:15] + by_sales[:10])
+    by_no_proof, by_sales = write_report(today, arts, args.top, args.max_followers, report)
+    save_articles(out / "articles.json", today, arts, by_no_proof[:15] + by_sales[:10])
 
     eye = out / "eyecatch"
     eye.mkdir(exist_ok=True)
     seen = set()
-    for rank, a in enumerate(by_underdog[:15] + by_sales[:10]):
+    for rank, a in enumerate(by_no_proof[:15] + by_sales[:10]):
         if a["eyecatch"] and a["key"] not in seen:
             seen.add(a["key"])
             download(a["eyecatch"], eye / f"{a['key']}.png")

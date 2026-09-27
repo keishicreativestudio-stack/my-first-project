@@ -1,9 +1,9 @@
 # D:建前と本音型 ― 同じ場面の「建前」と「本音」を交互に見せる(ギャップでくり返し見られる)
 type: sticker
 variant: tempo
-# ▼スタンプ名(title)と検索ワード(search)は仮です。実際の名前に書き換えてください
+# ▼検索ワードはスタンプ名そのまま(確実に検索に出る)
 title: "限界会社員\n*アザラシ*"
-search: "限界アザラシ"
+search: "限界会社員アザラシ"
 stickers_dir: assets/stickers/seal
 count: 16
 cta_sub: "*このアザラシ*が目印！\nプロフのリンクからも買えます"

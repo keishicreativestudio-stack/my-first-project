@@ -1,9 +1,9 @@
 # C:クイズ型 ― 今の仕事メンタルを番号でコメントしてもらう(短い・ループ向け)
 type: sticker
 variant: quiz
-# ▼スタンプ名(title)と検索ワード(search)は仮です。実際の名前に書き換えてください
+# ▼検索ワードはスタンプ名そのまま(確実に検索に出る)
 title: "限界会社員\n*アザラシ*"
-search: "限界アザラシ"
+search: "限界会社員アザラシ"
 stickers_dir: assets/stickers/seal
 count: 16
 cta_sub: "*このアザラシ*が目印！\nプロフのリンクからも買えます"

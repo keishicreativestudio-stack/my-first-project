@@ -14,6 +14,12 @@
 
 どちらの型にも、進捗バー、文字のポップアニメーション、効果音、BGM(自動生成で著作権フリー)が入ります。
 
+## LINEスタンプの広告動画(`type: sticker`)
+スタンプ画像(PNG)を `assets/stickers/<作品名>/` に置いて、台本を書くだけで広告動画ができます。
+- 企画・リサーチ・運用プラン: [`docs/スタンプ広告_戦略.md`](docs/スタンプ広告_戦略.md)
+- 台本の例: `scripts/sticker/s01_chat.yaml`(トーク型)、`s02_tempo.yaml`(テンポ型)、`s03_quiz.yaml`(クイズ型)
+- 今のサンプルは仮スタンプ「もちまる」で作っています(`python -m shorts.sticker_placeholder` で再生成できます)
+
 ## はじめかた
 ```bash
 pip install -r requirements.txt

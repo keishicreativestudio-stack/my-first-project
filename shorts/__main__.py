@@ -39,15 +39,23 @@ def build_one(path: str, brand: dict, out_dir: str, with_bgm: bool) -> str:
     if kind not in TEMPLATES:
         raise ValueError(f"{path}: type は {list(TEMPLATES)} のどれかにしてください")
     c = brand["colors"]
-    header_label = brand["series_name"] + (f"  #{sc['episode']}" if sc.get("episode") else "")
-    header = text.pill(header_label, 40, c["text"], "#00000088")
+    accent = c["accent"]
+    if kind == "sticker":
+        # 広告なのでシリーズ名は出さない。進捗バーは台本で切り替え
+        header = None
+        accent = (sc.get("theme") or {}).get("accent", "#FF4F8B")
+    else:
+        header_label = brand["series_name"] + (f"  #{sc['episode']}" if sc.get("episode") else "")
+        header = text.pill(header_label, 40, c["text"], "#00000088")
     scenes = TEMPLATES[kind](sc, brand)
 
     name = os.path.splitext(os.path.basename(path))[0]
     out = os.path.join(out_dir, name + ".mp4")
     bgm = brand.get("bgm") or None
-    render(scenes, out, Overlay(header, c["accent"]), with_bgm=with_bgm, bgm_file=bgm,
-           bgm_volume=float(brand.get("bgm_volume", 0.35)))
+    bgm = sc.get("bgm", bgm) or None
+    render(scenes, out, Overlay(header, accent, progress=sc.get("progress_bar", True)), with_bgm=with_bgm,
+           bgm_file=bgm, bgm_volume=float(sc.get("bgm_volume", brand.get("bgm_volume", 0.35))),
+           bgm_bpm=float(sc.get("bpm", 100)))
     with open(os.path.join(out_dir, name + ".txt"), "w", encoding="utf-8") as f:
         f.write(post_text(sc))
     return out

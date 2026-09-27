@@ -1,0 +1,26 @@
+# ─────────────────────────────────────────────
+# LINEスタンプ広告 C:クイズ型(コメントとループ再生を狙う)
+# 短く作ってループさせる。進捗バーは出さない
+# ─────────────────────────────────────────────
+type: sticker
+variant: quiz
+title: "もちまるの\n*まいにち*スタンプ"
+search: "もちまる"
+stickers_dir: assets/stickers/sample
+main_sticker: 07_muri.png
+bpm: 104
+progress_bar: false
+show_lineup: false
+cta_sec: 2.8
+
+hook: "今日のあなたの\n気分は*どれ？*"
+quiz:
+  choices: [07_muri.png, 03_otsukare.png, 05_erai.png, 08_suki.png]
+  ask: "コメントで番号おしえて！"
+  sec: 5.0
+
+caption: |
+  今日の気分、1〜4で教えてください👇
+  私は毎日1番です…
+  スタンプは LINEスタンプショップで「もちまる」で検索！
+hashtags: [LINEスタンプ, 今日の気分, クリエイターズスタンプ, ゆるキャラ, イラスト, 共感]

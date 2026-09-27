@@ -53,7 +53,38 @@ def tick() -> np.ndarray:
     return 0.35 * np.sin(2 * np.pi * 1800 * t) * _env(n, 0.001, 0.01)
 
 
-SFX = {"pop": pop, "whoosh": whoosh, "ding": ding, "tick": tick}
+def msg() -> np.ndarray:
+    """メッセージ受信の「ピコッ」(オリジナルの2音)"""
+    out = []
+    for f, L in ((1046.5, 0.07), (1568.0, 0.12)):
+        n = int(SR * L)
+        t = np.arange(n) / SR
+        out.append(0.28 * (np.sin(2 * np.pi * f * t) + 0.3 * np.sin(4 * np.pi * f * t)) * _env(n, 0.002, L / 2.5))
+    return np.concatenate(out)
+
+
+def boing() -> np.ndarray:
+    """スタンプが跳ねる「ぽよん」"""
+    n = int(SR * 0.32)
+    t = np.arange(n) / SR
+    freq = 260 + 180 * np.sin(2 * np.pi * 9 * t) * np.exp(-t / 0.12) + 120 * np.exp(-t / 0.05)
+    return 0.45 * np.sin(2 * np.pi * np.cumsum(freq) / SR) * _env(n, 0.003, 0.11)
+
+
+def sparkle() -> np.ndarray:
+    """キラキラ(上昇アルペジオ)"""
+    notes = [1568.0, 2093.0, 2637.0, 3136.0]
+    step = int(SR * 0.055)
+    n = step * len(notes) + int(SR * 0.4)
+    out = np.zeros(n)
+    for i, f in enumerate(notes):
+        L = int(SR * 0.4)
+        t = np.arange(L) / SR
+        out[i * step : i * step + L] += 0.12 * np.sin(2 * np.pi * f * t) * _env(L, 0.002, 0.12)
+    return out
+
+
+SFX = {"pop": pop, "whoosh": whoosh, "ding": ding, "tick": tick, "msg": msg, "boing": boing, "sparkle": sparkle}
 
 
 def bgm(duration: float, bpm: float = 100) -> np.ndarray:
@@ -116,11 +147,12 @@ def bgm(duration: float, bpm: float = 100) -> np.ndarray:
     return out
 
 
-def build_track(duration: float, events: list[tuple[float, str]], with_bgm: bool, bgm_volume: float) -> np.ndarray:
+def build_track(duration: float, events: list[tuple[float, str]], with_bgm: bool, bgm_volume: float,
+                bpm: float = 100) -> np.ndarray:
     n = int(SR * duration) + 1
     track = np.zeros(n)
     if with_bgm:
-        b = bgm(duration)[:n]
+        b = bgm(duration, bpm)[:n]
         track[: len(b)] += b * bgm_volume * 2.2
     cache: dict[str, np.ndarray] = {}
     for t, name in events:

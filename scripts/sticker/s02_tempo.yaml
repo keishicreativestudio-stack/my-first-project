@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────
+# LINEスタンプ広告 B:テンポ型(便利さと種類の多さ)
+# BGMのテンポ(bpm)に合わせて1個ずつ切り替わります
+# ─────────────────────────────────────────────
+type: sticker
+variant: tempo
+title: "もちまるの\n*まいにち*スタンプ"
+search: "もちまる"
+stickers_dir: assets/stickers/sample
+main_sticker: 08_suki.png
+bpm: 120
+
+hook: "このスタンプ\n*毎日*使ってる"
+hook_sticker: 01_ryokai.png
+
+items:
+  - {label: "*朝イチ*の返事に", sticker: 01_ryokai.png}
+  - {label: "*お礼*はこれ1個", sticker: 02_arigato.png}
+  - {label: "*仕事終わり*に", sticker: 03_otsukare.png}
+  - {label: "*やらかした*時に", sticker: 04_gomen.png}
+  - {label: "*ほめたい*時に", sticker: 05_erai.png}
+  - {label: "*寝る前*に", sticker: 06_oyasumi.png}
+  - {label: "*キャパオーバー*の時", sticker: 07_muri.png}
+  - {label: "*大事な人*に", sticker: 08_suki.png}
+
+caption: |
+  朝から夜まで、これだけで会話できちゃう。
+  「もちまる」のまいにちスタンプ全8種🍡
+  LINEスタンプショップで「もちまる」で検索！
+hashtags: [LINEスタンプ, LINEスタンプ紹介, クリエイターズスタンプ, 新作スタンプ, 毎日使える, ゆるキャラ, イラスト]

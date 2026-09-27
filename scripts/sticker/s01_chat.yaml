@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────
+# LINEスタンプ広告 A:トーク型(使う場面を想像させる)
+# ※今は仮スタンプ「もちまる」で作っています。実物の画像が届いたら差し替えます
+# ─────────────────────────────────────────────
+type: sticker
+variant: chat
+title: "もちまるの\n*まいにち*スタンプ"   # 作品名(最後の画面に出る)
+search: "もちまる"                         # スタンプショップの検索ワード
+stickers_dir: assets/stickers/sample
+main_sticker: 02_arigato.png               # 最後の画面の大きいスタンプ
+bpm: 112
+lineup_sec: 2.4
+cta_sec: 3.0
+
+# 最初の2秒(ここで止まってもらう)
+hook: "文字打つより\n*スタンプ1個*の方が\n伝わる時ある"
+hook_sticker: 02_arigato.png
+
+chats:
+  - caption: "*急なお誘い*にも"
+    partner: "ゆか"
+    messages:
+      - {from: them, text: "今日ごはん行ける？！"}
+      - {from: me, sticker: 01_ryokai.png, time: "18:02"}
+  - caption: "*がんばった人*に"
+    partner: "同期のたくみ"
+    messages:
+      - {from: them, text: "やっと資料おわった…"}
+      - {from: me, sticker: 05_erai.png, time: "21:47"}
+  - caption: "*やらかした*時も"
+    partner: "ママ"
+    messages:
+      - {from: them, text: "牛乳買ってきてって言ったよね？"}
+      - {from: me, sticker: 04_gomen.png, time: "19:15"}
+  - caption: "で、*絶対*聞かれる"
+    partner: "ゆか"
+    messages:
+      - {from: them, text: "待ってそのスタンプ\nかわいすぎ！どこの？"}
+      - {from: me, text: "「もちまる」で\n検索してみて！"}
+
+caption: |
+  返事に迷ったらスタンプ1個で済ませたい派の人へ🙌
+  毎日使える「もちまる」のスタンプ、全8種です。
+  LINEスタンプショップで「もちまる」で検索してね！
+hashtags: [LINEスタンプ, LINEスタンプ紹介, クリエイターズスタンプ, 新作スタンプ, ゆるキャラ, イラスト, あるある]

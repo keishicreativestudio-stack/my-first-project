@@ -146,4 +146,6 @@ def build_property(sc: dict, brand: dict) -> list[Scene]:
     return scenes
 
 
-TEMPLATES = {"tips": build_tips, "property": build_property}
+from .sticker_ad import build_sticker_ad  # noqa: E402
+
+TEMPLATES = {"tips": build_tips, "property": build_property, "sticker": build_sticker_ad}

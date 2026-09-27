@@ -56,6 +56,8 @@ class Layer:
     anim: str = "pop"  # pop / slide / fade / stamp / none
     sfx: str | None = "pop"
     dur: float = 0.3
+    idle: str | None = None  # 登場後の待機モーション: bob(ぷかぷか) / wiggle(ぷるぷる) / pulse(どきどき)
+    idle_amp: float = 1.0
 
     @classmethod
     def centered(cls, img: Image.Image, cy: int, **kw) -> "Layer":
@@ -82,6 +84,24 @@ def _with_alpha(img: Image.Image, a: float) -> Image.Image:
     return Image.merge("RGBA", (r, g, b, al))
 
 
+def _idle(img: Image.Image, x: int, y: int, t: float, kind: str, amp: float):
+    """登場後もずっと少し動かして「生きている」感じを出す"""
+    if kind == "bob":
+        return img, x, y + int(-abs(math.sin(math.pi * t * 1.3)) * 18 * amp)
+    if kind == "wiggle":
+        ang = math.sin(2 * math.pi * t * 1.1) * 4 * amp
+        r = img.rotate(ang, resample=Image.BICUBIC, expand=True)
+        return r, x - (r.width - img.width) // 2, y - (r.height - img.height) // 2
+    if kind == "spin":
+        r = img.rotate(-t * 25 * amp, resample=Image.BILINEAR)
+        return r, x, y
+    if kind == "pulse":
+        s = 1 + 0.04 * amp * (0.5 + 0.5 * math.sin(2 * math.pi * t * 1.6))
+        w, h = int(img.width * s), int(img.height * s)
+        return img.resize((w, h), Image.BILINEAR), x - (w - img.width) // 2, y - (h - img.height) // 2
+    return img, x, y
+
+
 def draw_layer(frame: Image.Image, L: Layer, t: float) -> None:
     lt = t - L.start
     if lt < 0:
@@ -89,6 +109,9 @@ def draw_layer(frame: Image.Image, L: Layer, t: float) -> None:
     p = lt / L.dur if L.dur > 0 else 1.0
     img, x, y = L.img, L.x, L.y
     if L.anim == "none" or p >= 1:
+        if L.idle:
+            it = lt - (L.dur if L.anim != "none" else 0)
+            img, x, y = _idle(img, x, y, it, L.idle, L.idle_amp)
         frame.paste(img, (x, y), img)
         return
     if L.anim in ("pop", "stamp"):
@@ -219,10 +242,11 @@ class Overlay:
     header: Image.Image | None
     accent: str
     header_y: int = 150
+    progress: bool = True
 
 
 def render(scenes: list[Scene], out_path: str, overlay: Overlay, with_bgm: bool = True,
-           bgm_file: str | None = None, bgm_volume: float = 0.35) -> str:
+           bgm_file: str | None = None, bgm_volume: float = 0.35, bgm_bpm: float = 100) -> str:
     total = sum(s.duration for s in scenes)
     nframes = int(round(total * FPS))
 
@@ -242,7 +266,7 @@ def render(scenes: list[Scene], out_path: str, overlay: Overlay, with_bgm: bool 
     tmp = tempfile.mkdtemp()
     wav = os.path.join(tmp, "sfx.wav")
     synth_bgm = with_bgm and not bgm_file
-    audio.write_wav(wav, audio.build_track(total, events, synth_bgm, bgm_volume))
+    audio.write_wav(wav, audio.build_track(total, events, synth_bgm, bgm_volume, bgm_bpm))
 
     cmd = [ffmpeg_exe(), "-y", "-loglevel", "error",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
@@ -278,9 +302,10 @@ def render(scenes: list[Scene], out_path: str, overlay: Overlay, with_bgm: bool 
             h = overlay.header
             frame.paste(h, ((W - h.width) // 2, overlay.header_y), h)
         # 進捗バー(最後まで見たくなる)
-        d = ImageDraw.Draw(frame)
-        d.rectangle((0, 0, W, 12), fill=(0, 0, 0))
-        d.rectangle((0, 0, int(W * (t + 1 / FPS) / total), 12), fill=accent)
+        if overlay.progress:
+            d = ImageDraw.Draw(frame)
+            d.rectangle((0, 0, W, 12), fill=(0, 0, 0))
+            d.rectangle((0, 0, int(W * (t + 1 / FPS) / total), 12), fill=accent)
         proc.stdin.write(frame.tobytes())
     proc.stdin.close()
     if proc.wait() != 0:

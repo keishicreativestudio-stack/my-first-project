@@ -1,0 +1,54 @@
+# A:トーク型 ― 「気圧に弱い人」に呼びかけて、あるある会話で共感させる
+type: sticker
+variant: chat
+# ▼スタンプ名と検索ワードは仮です。実際の名前に書き換えてください
+title: "無表情なくもの\n*心の天気*スタンプ"
+search: "くもの心の天気"
+stickers_dir: assets/stickers/kumo
+count: 16
+main_sticker: 12.png
+bpm: 108
+lineup_sec: 2.6
+cta_sec: 3.2
+theme:
+  bg: "#DCEBFF"
+  bg2: "#F1ECFF"
+  pattern: "#FFFFFF"
+  text: "#262A3D"
+  accent: "#4A78F0"
+  header: "#7EA2F2"
+  chat_bg: "#F8FAFF"
+  them: "#ECEEF5"
+  me: "#DCE7FF"
+
+hook: "*気圧に弱い人*\nこれ使って"
+hook_sticker: 12.png        # 気圧に敗北
+
+chats:
+  - caption: "*月曜の朝*"
+    partner: "同期のあや"
+    messages:
+      - {from: them, text: "おはよ〜！今週もがんばろ！"}
+      - {from: me, sticker: 09.png, time: "7:48"}      # 本日メンタル大荒れ
+  - caption: "*雨の日*"
+    partner: "ママ"
+    messages:
+      - {from: them, text: "雨だけど頭痛大丈夫？"}
+      - {from: me, sticker: 12.png, time: "12:10"}     # 気圧に敗北
+  - caption: "*会議が延びた時*"
+    partner: "同期のあや"
+    messages:
+      - {from: them, text: "会議また延長だって…"}
+      - {from: me, sticker: 11.png, time: "16:55"}     # やる気前線消滅
+  - caption: "で、*絶対*聞かれる"
+    partner: "同期のあや"
+    messages:
+      - {from: them, text: "そのスタンプ天才すぎ\nどこの？？"}
+      - {from: me, text: "「くもの心の天気」で\n検索してみて！"}
+
+caption: |
+  気圧に負ける日も、メンタル大荒れの日も、
+  無表情なくもが代わりに言ってくれます☁️
+  あいさつにも使える全16種。
+  LINEスタンプショップで「くもの心の天気」で検索！
+hashtags: [LINEスタンプ, LINEスタンプ紹介, クリエイターズスタンプ, 気圧, 低気圧, 天気痛, メンタル, 雲]

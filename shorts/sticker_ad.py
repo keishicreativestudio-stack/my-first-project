@@ -245,8 +245,8 @@ def hook_scene(sc: dict, th: dict, st: Stickers, bg) -> Scene:
 def lineup_scene(sc: dict, th: dict, st: Stickers, bg) -> Scene:
     names = sc.get("lineup") or st.files
     n_total = int(sc.get("count") or len(st.files))
-    names = names[:12]
-    cols = 3 if len(names) > 4 else 2
+    names = names[:16]
+    cols = 4 if len(names) > 9 else 3 if len(names) > 4 else 2
     rows = math.ceil(len(names) / cols)
     cell_w = 940 // cols
     cell_h = min(300, 900 // rows)
@@ -305,8 +305,18 @@ def build_sticker_ad(sc: dict, brand: dict) -> list[Scene]:
     elif v == "tempo":
         scenes.append(hook_scene(sc, th, st, bg))
         beat = 60 / float(sc.get("bpm", 120))
+        tag = pill(sc["tempo_tag"], 44, "#FFFFFF", th["accent"], pad_x=30, pad_y=12) if sc.get("tempo_tag") else None
         for i, item in enumerate(sc.get("items", [])):
             s = Scene(float(item.get("sec", beat * 2)), bg2 if i % 2 == 0 else bg, enter_sfx=None)
+            if "sticker" not in item:
+                # 文字だけの場面(「…と見せかけて」などの切り替え)
+                cap = telop(item["label"], th, int(item.get("size", 120)))
+                s.layers.append(Layer(cap, (W - cap.width) // 2, 900 - cap.height // 2, start=0.0, anim="stamp",
+                                      sfx=item.get("sfx", "whoosh"), dur=0.2, idle="pulse"))
+                scenes.append(s)
+                continue
+            if tag is not None:
+                s.layers.append(Layer(tag, (W - tag.width) // 2, 300, start=0.0, anim="none", sfx=None))
             cap = telop(item["label"], th, 92)
             s.layers.append(Layer(cap, (W - cap.width) // 2, 470 - cap.height // 2, start=0.0, anim="slide", sfx=None, dur=0.18))
             s.layers.append(burst_layer(th, 1010))
@@ -329,7 +339,7 @@ def build_sticker_ad(sc: dict, brand: dict) -> list[Scene]:
             s.layers.append(Layer(im, cx - im.width // 2, cy - im.height // 2, start=0.35 + i * 0.22, anim="pop",
                                   sfx="boing", dur=0.32, idle="bob", idle_amp=0.5))
             b = number_badge(i + 1, 84, "#FFFFFF", th["accent"])
-            s.layers.append(Layer(b, cx - im.width // 2 - 20, cy - im.height // 2 - 30, start=0.45 + i * 0.22, anim="pop", sfx=None))
+            s.layers.append(Layer(b, cx - im.width // 2 - 58, cy - b.height // 2 + 20, start=0.45 + i * 0.22, anim="pop", sfx=None))
         ask = pill(q.get("ask", "コメントで番号おしえて！"), 52, "#FFFFFF", th["accent"], pad_x=44, pad_y=20)
         s.layers.append(Layer(ask, (W - ask.width) // 2, 1390, start=1.6, anim="pop", sfx="ding", idle="pulse"))
         scenes.append(s)

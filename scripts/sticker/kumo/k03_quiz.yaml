@@ -1,0 +1,35 @@
+# C:クイズ型 ― 今日の心の天気を番号でコメントしてもらう(短い・ループ向け)
+type: sticker
+variant: quiz
+# ▼スタンプ名と検索ワードは仮です。実際の名前に書き換えてください
+title: "無表情なくもの\n*心の天気*スタンプ"
+search: "くもの心の天気"
+stickers_dir: assets/stickers/kumo
+count: 16
+main_sticker: 16.png
+bpm: 100
+progress_bar: false
+show_lineup: false
+cta_sec: 2.8
+theme:
+  bg: "#DCEBFF"
+  bg2: "#F1ECFF"
+  pattern: "#FFFFFF"
+  text: "#262A3D"
+  accent: "#4A78F0"
+  header: "#7EA2F2"
+  chat_bg: "#F8FAFF"
+  them: "#ECEEF5"
+  me: "#DCE7FF"
+
+hook: "今日のあなたの\n*心の天気*は？"
+quiz:
+  choices: [09.png, 10.png, 13.png, 16.png]  # 大荒れ / 土砂降り / 晴れのち虚無 / 回復の兆し
+  ask: "コメントで番号おしえて！"
+  sec: 5.0
+
+caption: |
+  今日の心の天気、1〜4で教えてください☁️
+  わたしは毎日3番です。
+  スタンプは LINEスタンプショップで「くもの心の天気」で検索！
+hashtags: [LINEスタンプ, 今日の気分, クリエイターズスタンプ, 心の天気, 共感, 雲]

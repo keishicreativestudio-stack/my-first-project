@@ -1,9 +1,9 @@
 # A:トーク型 ― 敬語なので上司にも送れる、を職場の会話で見せる
 type: sticker
 variant: chat
-# ▼検索ワードはスタンプ名そのまま(確実に検索に出る)
+# ▼検索ワード「会社員アザラシ」はショップで一番上に出ることを確認済み
 title: "限界会社員\n*アザラシ*"
-search: "限界会社員アザラシ"
+search: "会社員アザラシ"
 stickers_dir: assets/stickers/seal
 count: 16
 cta_sub: "*このアザラシ*が目印！\nプロフのリンクからも買えます"
@@ -46,4 +46,4 @@ chats:
     partner: "同期のさき"
     messages:
       - {from: them, text: "そのアザラシ何？\n私も欲しいんだけど"}
-      - {from: me, text: "「限界会社員アザラシ」で\n検索してみて！"}
+      - {from: me, text: "「会社員アザラシ」で\n検索してみて！"}

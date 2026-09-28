@@ -1,0 +1,29 @@
+# D:限界レベル診断 ― 4段階の限界度を番号でコメントしてもらう(短い・ループ向け)
+type: sticker
+variant: quiz
+# ▼スタンプ名(title)と検索ワード(search)は仮です。正式名が決まったら書き換える
+title: "社会人\n*カワウソ*"
+search: "社会人カワウソ"
+stickers_dir: assets/stickers/otter
+cta_sub: "*このカワウソ*が目印！\nプロフのリンクからも買えます"
+main_sticker: 19.png
+bpm: 100
+progress_bar: false
+show_lineup: false
+cta_sec: 2.8
+theme:
+  bg: "#F7F1E8"
+  bg2: "#ECE2D4"
+  pattern: "#FFFFFF"
+  text: "#2B2118"
+  accent: "#2D5BC8"
+  header: "#39405A"
+  chat_bg: "#FCFAF7"
+  them: "#EEEAE4"
+  me: "#DCE6FF"
+
+hook: "今日のあなたの\n*限界レベル*は？"
+quiz:
+  choices: [05.png, 07.png, 14.png, 19.png]  # すぐやります / 大丈夫です(たぶん) / 帰りたい… / たすけて…
+  ask: "コメントで番号おしえて！"
+  sec: 5.0

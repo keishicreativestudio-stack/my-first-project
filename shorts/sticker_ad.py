@@ -245,7 +245,7 @@ def hook_scene(sc: dict, th: dict, st: Stickers, bg) -> Scene:
 def lineup_scene(sc: dict, th: dict, st: Stickers, bg) -> Scene:
     names = sc.get("lineup") or st.files
     n_total = int(sc.get("count") or len(st.files))
-    names = names[:16]
+    names = names[:20]  # 4列×5行まで
     cols = 4 if len(names) > 9 else 3 if len(names) > 4 else 2
     rows = math.ceil(len(names) / cols)
     cell_w = 940 // cols

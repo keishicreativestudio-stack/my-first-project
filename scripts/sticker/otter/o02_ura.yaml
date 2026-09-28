@@ -1,0 +1,38 @@
+# B:返信のウラ側型 ― スタンプ(表向きの返事)→ 本当はこう、を交互に見せる
+type: sticker
+variant: tempo
+# ▼スタンプ名(title)と検索ワード(search)は仮です。正式名が決まったら書き換える
+title: "社会人\n*カワウソ*"
+search: "社会人カワウソ"
+stickers_dir: assets/stickers/otter
+cta_sub: "*このカワウソ*が目印！\nプロフのリンクからも買えます"
+main_sticker: 07.png
+bpm: 120
+lineup_sec: 2.8
+lineup_text: "報連相ぜんぶ\n*これ1セット*"
+theme:
+  bg: "#F7F1E8"
+  bg2: "#ECE2D4"
+  pattern: "#FFFFFF"
+  text: "#2B2118"
+  accent: "#2D5BC8"
+  header: "#39405A"
+  chat_bg: "#FCFAF7"
+  them: "#EEEAE4"
+  me: "#DCE6FF"
+
+hook: "その返信\n*本当は…*"
+hook_sticker: 07.png          # 大丈夫です！(たぶん)
+tempo_tag: "返信のウラ側"
+
+items:
+  - {label: "", sticker: 12.png, sec: 1.0}                       # 今向かってます
+  - {label: "(本当は\n*まだ家*)", sec: 0.9, size: 120, sfx: pop}
+  - {label: "", sticker: 05.png, sec: 1.0}                       # すぐやります
+  - {label: "(本当は\n*明日やる*)", sec: 0.9, size: 120, sfx: pop}
+  - {label: "", sticker: 06.png, sec: 1.0}                       # いま確認中です
+  - {label: "(本当は\n*今見た*)", sec: 0.9, size: 120, sfx: pop}
+  - {label: "", sticker: 18.png, sec: 1.0}                       # いったん保留
+  - {label: "(本当は\n*忘れる*)", sec: 0.9, size: 120, sfx: pop}
+  - {label: "", sticker: 07.png, sec: 1.0}                       # 大丈夫です！(たぶん)
+  - {label: "(本当は\n*大丈夫じゃない*)", sec: 1.1, size: 110, sfx: pop}

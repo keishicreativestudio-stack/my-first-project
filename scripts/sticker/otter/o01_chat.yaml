@@ -1,0 +1,48 @@
+# A:トーク型 ― 報連相の返事がスタンプで全部済む
+type: sticker
+variant: chat
+# ▼スタンプ名(title)と検索ワード(search)は仮です。正式名が決まったら書き換える
+title: "社会人\n*カワウソ*"
+search: "社会人カワウソ"
+stickers_dir: assets/stickers/otter
+cta_sub: "*このカワウソ*が目印！\nプロフのリンクからも買えます"
+main_sticker: 08.png
+bpm: 108
+lineup_sec: 2.8
+lineup_text: "報連相ぜんぶ\n*これ1セット*"
+cta_sec: 3.2
+theme:
+  bg: "#F7F1E8"
+  bg2: "#ECE2D4"
+  pattern: "#FFFFFF"
+  text: "#2B2118"
+  accent: "#2D5BC8"
+  header: "#39405A"
+  chat_bg: "#FCFAF7"
+  them: "#EEEAE4"
+  me: "#DCE6FF"
+
+hook: "*社会人の返信*\nこれで全部済む"
+hook_sticker: 08.png          # 承知しました
+
+chats:
+  - caption: "*遅刻しそう*な朝"
+    partner: "課長"
+    messages:
+      - {from: them, text: "もう会議始まるけど\n今どこ？"}
+      - {from: me, sticker: 12.png, time: "9:58"}      # 今向かってます
+  - caption: "*無茶ぶり*された時"
+    partner: "部長"
+    messages:
+      - {from: them, text: "明日までに\nこれ全部いける？"}
+      - {from: me, sticker: 07.png, time: "17:40"}     # 大丈夫です！(たぶん)
+  - caption: "*限界*が来た時"
+    partner: "同期のゆうた"
+    messages:
+      - {from: them, text: "まだ会社？"}
+      - {from: me, sticker: 19.png, time: "22:13"}     # たすけて…
+  - caption: "で、*同期*に聞かれる"
+    partner: "同期のゆうた"
+    messages:
+      - {from: them, text: "そのカワウソ何？\n俺も使いたい"}
+      - {from: me, text: "「社会人カワウソ」で\n検索してみて！"}

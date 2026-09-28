@@ -1,0 +1,36 @@
+# C:残業の1日型 ― 出社から終電前までをスタンプだけで描く
+type: sticker
+variant: tempo
+# ▼スタンプ名(title)と検索ワード(search)は仮です。正式名が決まったら書き換える
+title: "社会人\n*カワウソ*"
+search: "社会人カワウソ"
+stickers_dir: assets/stickers/otter
+cta_sub: "*このカワウソ*が目印！\nプロフのリンクからも買えます"
+main_sticker: 03.png
+bpm: 120
+lineup_sec: 2.8
+lineup_text: "報連相ぜんぶ\n*これ1セット*"
+theme:
+  bg: "#F7F1E8"
+  bg2: "#ECE2D4"
+  pattern: "#FFFFFF"
+  text: "#2B2118"
+  accent: "#2D5BC8"
+  header: "#39405A"
+  chat_bg: "#FCFAF7"
+  them: "#EEEAE4"
+  me: "#DCE6FF"
+
+hook: "カワウソ社員の\n*長い1日*"
+hook_sticker: 01.png          # 今日も残業
+tempo_tag: "カワウソ社員の1日"
+
+items:
+  - {label: "*9:05*", sticker: 12.png}              # 今向かってます
+  - {label: "*10:00* 朝会", sticker: 04.png}        # 確認します
+  - {label: "*12:00*", sticker: 02.png}             # 休憩します
+  - {label: "*15:00* 急ぎの依頼", sticker: 05.png}  # すぐやります
+  - {label: "*17:30*", sticker: 01.png}             # 今日も残業
+  - {label: "*20:00*", sticker: 14.png}             # 帰りたい…
+  - {label: "*22:00*", sticker: 19.png}             # たすけて…
+  - {label: "*22:30*", sticker: 03.png}             # 先に失礼します

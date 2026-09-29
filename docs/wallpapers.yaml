@@ -1,0 +1,35 @@
+# カレンダー壁紙の設定(python -m shorts.wallpaper 2026 11 で作る)
+# 月ごとに holidays と各キャラの say を足していけば、毎月作れる
+
+holidays:
+  2026-11: {3: 文化の日, 23: 勤労感謝の日}
+  2026-12: {}
+
+characters:
+  - name: まんまるモフ雲の感情天気予報
+    stickers_dir: assets/stickers/kumo
+    sticker: 16.png                     # 回復の兆し
+    say:
+      2026-11: "11月の予報：\nときどき*気圧に敗北*"
+    theme: {bg: "#DCEBFF", bg2: "#F1ECFF", text: "#262A3D", accent: "#4A78F0"}
+
+  - name: 限界会社員アザラシ
+    stickers_dir: assets/stickers/seal
+    sticker: 09.png                     # もう帰りたい
+    say:
+      2026-11: "11月は祝日が*2回*。\nそれまで…もう帰りたい"
+    theme: {bg: "#EEF2F7", bg2: "#E2E8F1", text: "#1F2A44", accent: "#E2553A"}
+
+  - name: 社会人カワウソ
+    stickers_dir: assets/stickers/otter
+    sticker: 07.png                     # 大丈夫です！(たぶん)
+    say:
+      2026-11: "11月も\n*大丈夫です*(たぶん)"
+    theme: {bg: "#F7F1E8", bg2: "#ECE2D4", text: "#2B2118", accent: "#2D5BC8"}
+
+  - name: 定時で帰りたい書類
+    stickers_dir: assets/stickers/new4
+    sticker: 12.png                     # 定時です！
+    say:
+      2026-11: "今月も\n*定時*で帰りたい"
+    theme: {bg: "#FFF9EE", bg2: "#FCEFD8", text: "#3B3024", accent: "#2F7FD0"}

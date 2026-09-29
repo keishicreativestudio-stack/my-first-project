@@ -62,7 +62,7 @@ python -m shorts.sticker_kit prepare <zipのパス> <英数字の名前>
 - `theme` はキャラの色に合わせる。LINEの緑や青灰色のトーク画面にはしない(LINEのガイドライン)
 - `title` は info.yaml の正式名(読めなかったときだけ仮の名前にして `(仮)` と書き、最後にユーザーに聞く)。`count` も info.yaml の個数にする
 - **検索ワード**は「スタンプ名の中で珍しい言葉」。ユーザーに LINE のスタンプショップで検索してもらい、上位に出るものに決める
-- `captions` に全SNS分を書く(TikTok本文・固定コメント、Instagram、ストーリーズ、YouTubeタイトル・説明欄・固定コメント、X・リプライ、Threads 1つ目・2つ目)。書き方は過去の完成例の `投稿文.md` を参考に
+- `captions` に全SNS分を書く(TikTok本文・固定コメント、Instagram、ストーリーズ、YouTubeタイトル・説明欄・固定コメント、X・リプライ、Threads 1つ目・2つ目)。書き方は過去の完成例の `<フォルダ名>_投稿文.md` を参考に
   - ハッシュタグは5個まで
   - Xは日本語140文字相当まで
   - 本文にはどれも「検索ワード」を入れる
@@ -72,7 +72,7 @@ python -m shorts.sticker_kit prepare <zipのパス> <英数字の名前>
 ```bash
 python -m shorts.sticker_kit package <名前> [フォルダ名。省略すると正式名] --start <最初の投稿日を探し始める日> [--days 火木土月]
 ```
-- 前のスタンプの投稿日程の後から始める(既存フォルダの `投稿文.md` や `投稿予約表.xlsx` を見る)
+- 前のスタンプの投稿日程の後から始める(既存フォルダの `<フォルダ名>_投稿文.md` や `投稿予約表.xlsx` を見る)
 - 出てきた ⚠ はすべて直してから、もう一度実行する(投稿文だけ直すなら `--text-only`)
 
 ## 6. 仕上がりチェック(必ず目で見る)
@@ -86,7 +86,7 @@ python -m shorts.sticker_kit package <名前> [フォルダ名。省略すると
 
 ## 7. 渡す
 1. `git add` してコミット・push する。zip は .gitignore に `<フォルダ名>/*.zip` を追加して含めない
-2. SendUserFile で、動画4本(display: render)、`投稿文.html` と zip(display: attach)を送る。投稿文は html をダブルクリックしてブラウザで見ると、コピーボタンで使えることを伝える
+2. SendUserFile で、動画4本(display: render)、`<フォルダ名>_投稿文.html` と zip(display: attach)を送る。投稿文は html をダブルクリックしてブラウザで見ると、コピーボタンで使えることを伝える
 3. 返事で伝えること
    - 分析
    - 4本の構成と投稿日

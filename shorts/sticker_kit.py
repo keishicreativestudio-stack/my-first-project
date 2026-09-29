@@ -13,8 +13,8 @@ prepare の結果
 
 package の結果(<フォルダ名>/ の中)
   1_1105木_トーク型.mp4 …          投稿順・日付つきの動画
-  投稿文.md                         TikTok/固定コメント/Instagram/ストーリーズ/YouTube/X/Threads
-  投稿文.html                       上と同じ内容をブラウザで見やすく(コピーボタン付き)
+  <フォルダ名>_投稿文.md             TikTok/固定コメント/Instagram/ストーリーズ/YouTube/X/Threads
+  <フォルダ名>_投稿文.html           上と同じ内容をブラウザで見やすく(コピーボタン付き)
   予約表.csv                        TikTok・YouTube・Instagram の予約用(Excelで開ける)
   <フォルダ名>_投稿セット.zip       上の全部をまとめたもの
 """
@@ -317,9 +317,10 @@ def package(slug: str, folder: str, start: dt.date, days: str, brand_path: str, 
                                       ("Instagram", "", cap("instagram"), "")):
             csv_rows.append([f"{day:%Y/%m/%d}", WEEKDAYS[day.weekday()], tm, sns, vname + ".mp4", title, body, pin, ""])
 
-    open(os.path.join(folder, "投稿文.md"), "w", encoding="utf-8").write("\n".join(x for x in md if x is not None))
+    md_path = os.path.join(folder, f"{os.path.basename(folder)}_投稿文.md")  # 保存時に他のスタンプと名前がぶつからないように
+    open(md_path, "w", encoding="utf-8").write("\n".join(x for x in md if x is not None))
     from .post_page import build as build_page
-    build_page(os.path.join(folder, "投稿文.md"))  # ブラウザで見る版(コピーボタン付き)
+    build_page(md_path)  # ブラウザで見る版(コピーボタン付き)
     with open(os.path.join(folder, "予約表.csv"), "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
         w.writerow(["日付", "曜日", "時間", "SNS", "動画", "YouTubeタイトル", "投稿文", "固定コメント", "予約済み"])

@@ -28,7 +28,7 @@ python -m shorts.sticker_kit prepare スタンプ.zip otter     # 取り込み+�
 # scripts/sticker/otter/ に台本4本を書く(型: docs/sticker_script_template.yaml)
 python -m shorts.sticker_kit package otter 社会人カワウソ --start 2026-11-05
 ```
-フォルダには、日付入りの動画4本、`投稿文.md`(全SNS分)、`予約表.csv`、zip ができます。
+フォルダには、日付入りの動画4本、`<フォルダ名>_投稿文.md`(全SNS分)、`予約表.csv`、zip ができます。
 
 ## はじめかた
 ```bash

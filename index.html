@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>星夜のタロット</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+
+<main>
+  <header>
+    <p class="sub">✦ Tarot of the Starry Night ✦</p>
+    <h1>星夜のタロット</h1>
+    <p class="lead">心を静めて、知りたいことを思い浮かべてください。</p>
+  </header>
+
+  <section class="controls">
+    <div class="spread-select" role="radiogroup" aria-label="占い方">
+      <label><input type="radio" name="spread" value="1" checked><span>ワンオラクル<small>今日のメッセージ</small></span></label>
+      <label><input type="radio" name="spread" value="3"><span>スリーカード<small>過去・現在・未来</small></span></label>
+    </div>
+    <button id="draw" class="btn">カードを引く</button>
+  </section>
+
+  <section id="table" class="table" aria-live="polite"></section>
+
+  <p id="hint" class="hint" hidden>カードをタップしてめくってください</p>
+
+  <section id="result" class="result" hidden></section>
+
+  <button id="again" class="btn ghost" hidden>もう一度占う</button>
+</main>
+
+<footer>占いはエンターテインメントです。結果はあなたの心のヒントとしてお楽しみください。</footer>
+
+<script src="cards.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

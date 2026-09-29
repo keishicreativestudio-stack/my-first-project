@@ -290,12 +290,96 @@ def cta_scene(sc: dict, th: dict, st: Stickers, bg) -> Scene:
 
 # ------------------------------------------------------------------ 型ごとの構成
 
+def notif(partner: str, msg: str, th: dict) -> Image.Image:
+    """スマホの通知風カード(アイコン+名前+一言)。LINEの画面には似せない"""
+    name = render_text(partner, 40, "#8A8F98", "#8A8F98", outline=None, weight_px=1)
+    body = render_text(msg, 58, "#1F2430", th["accent"], outline=None, max_width=790, align="left", line_gap=1.3, weight_px=1)
+    av = avatar(partner, th["header"], 110)
+    w = 60 + av.width + 28 + max(name.width, body.width) + 50
+    h = max(av.height, name.height + body.height) + 70
+    img = Image.new("RGBA", (w + 30, h + 30), (0, 0, 0, 0))
+    sh = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(sh).rounded_rectangle((15, 22, w + 15, h + 22), radius=44, fill=(60, 40, 20, 70))
+    img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(12)))
+    ImageDraw.Draw(img).rounded_rectangle((0, 0, w, h), radius=44, fill="#FFFFFF")
+    img.alpha_composite(av, (40, (h - av.height) // 2))
+    x = 40 + av.width + 28
+    img.alpha_composite(name, (x, 30))
+    img.alpha_composite(body, (x, 30 + name.height - 4))
+    return img
+
+
+def beat_scenes(sc: dict, th: dict, st: Stickers, bg, bg2) -> list[Scene]:
+    """バズ型(variant: beats)。見出しや一覧を出さず、場面(ビート)を並べるだけの短い動画。
+
+    各ビートに書けるもの(どれも省略可):
+      caption: 画面上の一行(POV:… / あるある見出し など)
+      from + says: 通知風のメッセージ(相手の名前と一言)
+      sticker: 大きなスタンプ(オチ)
+      text: 大きな文字だけ(「翌朝」「…と思ったら」など)
+      choices: [A, B] 上下に2つ並べて「どっち派？」
+      ask: 下に出す問いかけ(「コメントでAかBか教えて！」など)
+      sec: 秒数
+    """
+    scenes: list[Scene] = []
+    beats = sc.get("beats", [])
+    for i, b in enumerate(beats):
+        s = Scene(float(b.get("sec", 1.2)), bg2 if i % 2 else bg, enter_sfx=b.get("enter_sfx", "whoosh" if i else None))
+        t0 = 0.0
+        y = 330  # 上から順に詰めて並べる(重ならないように)
+        if b.get("caption"):
+            cap = telop(b["caption"], th, int(b.get("caption_size", 100)))
+            s.layers.append(Layer(cap, (W - cap.width) // 2, y, start=0.0,
+                                  anim="none" if b.get("keep_caption") else "slide", sfx=None, dur=0.15))
+            y += cap.height + 30
+        has_msg = bool(b.get("says"))
+        if has_msg:
+            n = notif(b.get("from", ""), b["says"], th)
+            y = max(y, 560)
+            s.layers.append(Layer(n, (W - n.width) // 2, y, start=0.05, anim="slide", sfx="msg", dur=0.22))
+            y += n.height + 10
+            t0 = float(b.get("react_at", 0.9)) if b.get("sticker") else 0
+        if b.get("sticker"):
+            bottom = 1460  # これより下はSNSのボタンや投稿文に隠れる
+            size = min(780, bottom - y + 60)
+            im = _shadow(st.sized(b["sticker"], size, size - 60))
+            cy = max(y + im.height // 2 - 20, 1000) if not has_msg else y + im.height // 2 - 20
+            s.layers.append(burst_layer(th, cy, t0, 1100))
+            s.layers.append(Layer(im, (W - im.width) // 2, cy - im.height // 2, start=t0 + 0.04, anim="stamp",
+                                  sfx="boing", dur=0.18, idle="wiggle"))
+        if b.get("text"):
+            tx = telop(b["text"], th, int(b.get("size", 130)))
+            s.layers.append(Layer(tx, (W - tx.width) // 2, 900 - tx.height // 2, start=0.0, anim="stamp",
+                                  sfx=b.get("sfx", "pop"), dur=0.2, idle="pulse"))
+        if b.get("choices"):
+            for k, (nm, cy) in enumerate(zip(b["choices"][:2], (800, 1210))):
+                im = st.sized(nm, 520, 390)
+                s.layers.append(Layer(im, (W - im.width) // 2, cy - im.height // 2, start=0.25 + k * 0.35,
+                                      anim="pop", sfx="boing", dur=0.3, idle="bob", idle_amp=0.5))
+                badge = number_badge("AB"[k], 96, "#FFFFFF", th["accent"])
+                s.layers.append(Layer(badge, (W - im.width) // 2 - 70, cy - 48, start=0.35 + k * 0.35, anim="pop", sfx=None))
+        if b.get("ask"):
+            ask = pill(b["ask"], 50, "#FFFFFF", th["accent"], pad_x=40, pad_y=18)
+            s.layers.append(Layer(ask, (W - ask.width) // 2, 1410, start=float(b.get("ask_at", 1.0)), anim="pop",
+                                  sfx="ding", idle="pulse"))
+        scenes.append(s)
+    # 最後のビートに小さく商品名だけ(買い方は投稿文と固定コメントで案内する)
+    if scenes and sc.get("soft_cta", True):
+        label = pill(f"スタンプ:「{sc.get('search', '')}」", 44, th["text"], "#FFFFFFCC", pad_x=26, pad_y=10)
+        last = scenes[-1]
+        last.layers.append(Layer(label, (W - label.width) // 2, 220, start=0.2, anim="fade", sfx=None))
+    return scenes
+
+
 def build_sticker_ad(sc: dict, brand: dict) -> list[Scene]:
     th = {**DEFAULT_THEME, **(sc.get("theme") or {})}
     st = Stickers(sc)
     bg, bg2 = pastel_bg(th), pastel_bg(th, alt=True)
     v = sc.get("variant", "chat")
     scenes: list[Scene] = []
+
+    if v == "beats":
+        return beat_scenes(sc, th, st, bg, bg2)
 
     if v == "chat":
         scenes.append(hook_scene(sc, th, st, bg))

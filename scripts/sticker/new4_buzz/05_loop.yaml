@@ -1,0 +1,80 @@
+# バズ5:ループ型 ― 「また明日」から次の朝の「おはよう」に戻って何周も見てしまう(約7秒)
+type: sticker
+variant: beats
+title: "定時で帰りたい\n*書類*"
+search: "定時で帰りたい書類"
+stickers_dir: assets/stickers/new4
+bpm: 118
+progress_bar: false
+theme:
+  bg: "#FFF9EE"
+  bg2: "#FCEFD8"
+  pattern: "#FFFFFF"
+  text: "#3B3024"
+  accent: "#2F7FD0"
+  header: "#2F7FD0"
+  chat_bg: "#FFFDF8"
+  them: "#F1ECE3"
+  me: "#DDEBFF"
+post: {label: バズ_ループ型, time: "8:00"}
+beats:
+  - {caption: "*8:50*", sticker: 01.png, sec: 1.2, enter_sfx: null}   # おはよう
+  - {caption: "*9:00*", sticker: 05.png, sec: 1.0}                    # 確認します
+  - {caption: "*12:00*", sticker: 14.png, sec: 1.0}                   # 休憩します
+  - {caption: "*17:59*", sticker: 11.png, sec: 1.0}                   # 終わりました
+  - {caption: "*18:00*", sticker: 12.png, sec: 1.0}                   # 定時です！
+  - {caption: "*18:01*", sticker: 16.png, sec: 1.3}                   # また明日
+captions:
+  tiktok:
+    caption: |
+      これを毎日くり返してる
+      何周目で気づいた？
+    hashtags: [ループ, 会社員, 定時退社, LINEスタンプ, 定時で帰りたい書類]
+  tiktok_pin: |
+    このスタンプは「定時で帰りたい書類」で検索すると出てきます📄
+    プロフのリンクからも見られます
+  youtube_pin: |
+    スタンプはこちら📄
+    (ここにスタンプショップのURL)
+    「定時で帰りたい書類」で検索しても出てきます
+  x_reply: |
+    スタンプはこちら📄「定時で帰りたい書類」
+    (ここにスタンプショップのURL)
+  threads_2: |
+    ちなみにこの書類、LINEスタンプになってます📄
+    「定時で帰りたい書類」で検索すると出てきます
+    (ここにスタンプショップのURL)
+  instagram:
+    caption: |
+      おはよう → 確認します → 定時です！ → また明日
+      これを毎日くり返してる📄
+
+      何周目で気づいたかコメントで教えて👇
+      このスタンプは「定時で帰りたい書類」で検索すると出てきます
+    hashtags: [ループ, 会社員, 定時退社, LINEスタンプ, 定時で帰りたい書類]
+  stories: |
+    1枚目(動画): 気づいたら3周してた📄 / リンクスタンプの文字「書類スタンプを見る」
+    2枚目: 質問スタンプ「あなたの1日を一言で」
+  youtube_title: "会社員の1日、これを永遠にくり返してる #shorts"
+  youtube_desc: |
+    おはよう → 確認します → 定時です！ → また明日 → おはよう…
+    何周目で気づきましたか？
+
+    ▼スタンプ「定時で帰りたい書類」
+    (ここにスタンプショップのURL)
+    #会社員 #定時退社 #LINEスタンプ
+  x:
+    caption: |
+      会社員の1日
+
+      8:50 おはよう
+      9:00 確認します
+      18:00 定時です！
+      18:01 また明日
+      → 8:50 おはよう
+
+      これを永遠にくり返してる📄
+    hashtags: [会社員]
+  threads: |
+    おはよう、確認します、定時です、また明日。
+    これを毎日くり返して、気づいたら金曜日になってる📄

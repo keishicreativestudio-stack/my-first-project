@@ -61,6 +61,18 @@ chats:
 #   ask: "コメントで番号おしえて！"
 #   sec: 5.0
 
+# ── variant: beats の場合(バズ型。見出し・一覧・大きな案内なし) ──
+# progress_bar: false
+# beats:
+#   - caption: "POV：*定時5分前*"      # 画面上の一行
+#     from: "課長"                      # 通知風メッセージ
+#     says: "ちょっといい？"
+#     sticker: 15.png                   # オチのスタンプ
+#     react_at: 1.1                     # スタンプが出るまでの秒数
+#     sec: 2.8
+#   - {text: "…と思ったら", sec: 1.0}    # 大きな文字だけ
+#   - {caption: "どっち？", choices: [01.png, 02.png], ask: "コメントでAかBか教えて！", sec: 6}
+
 lineup_text: "毎日使える\n*全16種*"   # 全種類一覧の見出し(省略可)
 
 # ── 投稿文(package で 投稿文.md と 予約表.csv にまとまる) ──

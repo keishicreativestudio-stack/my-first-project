@@ -1,0 +1,81 @@
+# バズ1:POV型 ― 状況を一行で見せて、スタンプ1個で返すオチ(約7秒)
+type: sticker
+variant: beats
+title: "定時で帰りたい\n*書類*"
+search: "定時で帰りたい書類"
+stickers_dir: assets/stickers/new4
+bpm: 118
+progress_bar: false
+theme:
+  bg: "#FFF9EE"
+  bg2: "#FCEFD8"
+  pattern: "#FFFFFF"
+  text: "#3B3024"
+  accent: "#2F7FD0"
+  header: "#2F7FD0"
+  chat_bg: "#FFFDF8"
+  them: "#F1ECE3"
+  me: "#DDEBFF"
+post: {label: バズ_POV型, time: "17:50"}
+beats:
+  - caption: "POV：*定時5分前*"
+    from: "課長"
+    says: "ちょっといい？"
+    sticker: 15.png            # 限界です…
+    react_at: 1.1
+    sec: 2.8
+  - caption: "POV：*定時5分前*"
+    keep_caption: true
+    from: "課長"
+    says: "あ、やっぱり明日でいいや"
+    sticker: 12.png            # 定時です！
+    react_at: 1.1
+    sec: 3.0
+captions:
+  tiktok:
+    caption: |
+      定時5分前の「ちょっといい？」ほど怖いものはない
+    hashtags: [POV, 定時退社, 会社員あるある, LINEスタンプ, 定時で帰りたい書類]
+  tiktok_pin: |
+    このスタンプは「定時で帰りたい書類」で検索すると出てきます📄
+    プロフのリンクからも見られます
+  youtube_pin: |
+    スタンプはこちら📄
+    (ここにスタンプショップのURL)
+    「定時で帰りたい書類」で検索しても出てきます
+  x_reply: |
+    スタンプはこちら📄「定時で帰りたい書類」
+    (ここにスタンプショップのURL)
+  threads_2: |
+    ちなみにこの書類、LINEスタンプになってます📄
+    「定時で帰りたい書類」で検索すると出てきます
+    (ここにスタンプショップのURL)
+  instagram:
+    caption: |
+      定時5分前の「ちょっといい？」で心が止まる人🙋
+      「明日でいいや」で生き返る人🙋
+
+      このスタンプは「定時で帰りたい書類」で検索すると出てきます📄
+    hashtags: [会社員あるある, 定時退社, POV, LINEスタンプ, 定時で帰りたい書類]
+  stories: |
+    1枚目(動画): 定時5分前のこれ、わかる？📄 / リンクスタンプの文字「書類スタンプを見る」
+    2枚目: アンケート「定時5分前の『ちょっといい？』経験ある？」→ ある / 毎日
+  youtube_title: "POV：定時5分前に上司から「ちょっといい？」 #shorts"
+  youtube_desc: |
+    定時5分前の「ちょっといい？」ほど怖いものはない。
+
+    ▼スタンプ「定時で帰りたい書類」
+    (ここにスタンプショップのURL)
+    #会社員あるある #定時退社 #LINEスタンプ
+  x:
+    caption: |
+      定時5分前の「ちょっといい？」
+
+      心臓止まる → 「あ、やっぱり明日でいいや」→ 生き返る
+
+      この流れ、何回でも寿命が縮む📄
+    hashtags: [会社員あるある]
+  threads: |
+    定時5分前の「ちょっといい？」って、
+    なんであんなに心臓に悪いんだろう。
+    「明日でいいや」の一言で全部許せるけど。

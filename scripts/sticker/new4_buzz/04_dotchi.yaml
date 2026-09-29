@@ -1,0 +1,81 @@
+# バズ4:どっち派？型 ― 2択でコメントを集める(約6秒)
+type: sticker
+variant: beats
+title: "定時で帰りたい\n*書類*"
+search: "定時で帰りたい書類"
+stickers_dir: assets/stickers/new4
+bpm: 118
+progress_bar: false
+theme:
+  bg: "#FFF9EE"
+  bg2: "#FCEFD8"
+  pattern: "#FFFFFF"
+  text: "#3B3024"
+  accent: "#2F7FD0"
+  header: "#2F7FD0"
+  chat_bg: "#FFFDF8"
+  them: "#F1ECE3"
+  me: "#DDEBFF"
+post: {label: バズ_どっち派型, time: "7:30"}
+beats:
+  - caption: "定時に帰るとき\n上司に送るなら*どっち*？"
+    caption_size: 80
+    choices: [12.png, 13.png]   # A 定時です！ / B お先に失礼します
+    ask: "コメントでAかBか教えて！"
+    ask_at: 1.2
+    sec: 6.0
+captions:
+  tiktok:
+    caption: |
+      上司に送るならAとBどっち？👇
+      Aを送れる人は勇者
+    hashtags: [どっち派, 会社員あるある, 定時退社, LINEスタンプ, 定時で帰りたい書類]
+  tiktok_pin: |
+    このスタンプは「定時で帰りたい書類」で検索すると出てきます📄
+    プロフのリンクからも見られます
+  youtube_pin: |
+    スタンプはこちら📄
+    (ここにスタンプショップのURL)
+    「定時で帰りたい書類」で検索しても出てきます
+  x_reply: |
+    スタンプはこちら📄「定時で帰りたい書類」
+    (ここにスタンプショップのURL)
+  threads_2: |
+    ちなみにこの書類、LINEスタンプになってます📄
+    「定時で帰りたい書類」で検索すると出てきます
+    (ここにスタンプショップのURL)
+  instagram:
+    caption: |
+      定時に帰るとき、上司に送るなら？📄
+
+      A 定時です！
+      B お先に失礼します
+
+      コメントでAかBか教えてください👇
+      このスタンプは「定時で帰りたい書類」で検索すると出てきます
+    hashtags: [どっち派, 会社員あるある, 定時退社, LINEスタンプ, 定時で帰りたい書類]
+  stories: |
+    1枚目(動画): AとBどっち派？📄 / リンクスタンプの文字「書類スタンプを見る」
+    2枚目: アンケート「上司に送るなら？」→ A 定時です！ / B お先に失礼します
+  youtube_title: "定時に帰るとき上司に送るならどっち？A or B #shorts"
+  youtube_desc: |
+    A 定時です！/B お先に失礼します
+    コメントでAかBか教えてください。
+
+    ▼スタンプ「定時で帰りたい書類」
+    (ここにスタンプショップのURL)
+    #どっち派 #会社員あるある #LINEスタンプ
+  x:
+    caption: |
+      定時に帰るとき、上司に送るなら？📄
+
+      A「定時です！」
+      B「お先に失礼します」
+
+      リプでAかBか教えてください
+    hashtags: [どっち派]
+  threads: |
+    定時に帰るとき、上司に送るならどっち？📄
+    A「定時です！」
+    B「お先に失礼します」
+    Aを送れる人を尊敬してる。

@@ -295,6 +295,9 @@ def package(slug: str, folder: str, start: dt.date, days: str, brand_path: str, 
         search = str(sc.get("search", ""))
         for key in ("tiktok", "tiktok_pin", "instagram", "youtube_desc", "x"):
             body = cap(key)
+            elsewhere = {"x": "x_reply", "threads": "threads_2"}.get(key)  # リプライ側に書いてあればOK
+            if elsewhere and search in cap(elsewhere):
+                continue
             if body and search and search not in body:
                 problems.append(f"{os.path.basename(p)}: {key} に検索ワード「{search}」が入っていません")
             if any(w in body for w in ("1行目で共感させる", "少し長めの説明", "検索ワード」")) and search != "検索ワード":

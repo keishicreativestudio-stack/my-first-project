@@ -74,7 +74,7 @@ python -m shorts.sticker_kit package <名前> [フォルダ名。省略すると
 
 ## 7. 渡す
 1. `git add` してコミット・push する。zip は .gitignore に `<フォルダ名>/*.zip` を追加して含めない
-2. SendUserFile で、動画4本(display: render)と zip(display: attach)を送る
+2. SendUserFile で、動画4本(display: render)、`投稿文.html` と zip(display: attach)を送る。投稿文は html をダブルクリックしてブラウザで見ると、コピーボタンで使えることを伝える
 3. 返事で伝えること
    - 分析
    - 4本の構成と投稿日

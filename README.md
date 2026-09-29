@@ -20,6 +20,16 @@
 - 台本の例: `scripts/sticker/s01_chat.yaml`(トーク型)、`s02_tempo.yaml`(テンポ型)、`s03_quiz.yaml`(クイズ型)
 - 今のサンプルは仮スタンプ「もちまる」で作っています(`python -m shorts.sticker_placeholder` で再生成できます)
 
+### 新しいスタンプの投稿セットを作る流れ
+Claude Code にスタンプのzipを送って「広告動画作って」と言うと、`.claude/skills/sticker-ad/SKILL.md` の手順で一式を作ります。
+手で動かす場合は次の順番です。
+```bash
+python -m shorts.sticker_kit prepare スタンプ.zip otter     # 取り込み+スタンプ一覧の画像
+# scripts/sticker/otter/ に台本4本を書く(型: docs/sticker_script_template.yaml)
+python -m shorts.sticker_kit package otter 社会人カワウソ --start 2026-11-05
+```
+フォルダには、日付入りの動画4本、`投稿文.md`(全SNS分)、`予約表.csv`、zip ができます。
+
 ## はじめかた
 ```bash
 pip install -r requirements.txt

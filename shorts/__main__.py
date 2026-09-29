@@ -26,7 +26,9 @@ def load_brand(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def post_text(sc: dict) -> str:
+def post_text(sc: dict | str) -> str:
+    if isinstance(sc, str):  # 固定コメントなど、ハッシュタグの無いただの文
+        return sc.strip() + "\n"
     cap = (sc.get("caption") or "").strip()
     tags = " ".join("#" + t.lstrip("#") for t in sc.get("hashtags", []))
     return f"{cap}\n\n{tags}".strip() + "\n"

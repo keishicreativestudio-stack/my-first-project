@@ -1,0 +1,108 @@
+# ─────────────────────────────────────────────
+# LINEスタンプ広告の台本の型(1本分)
+# scripts/sticker/<名前>/ に 01_xxx.yaml 〜 04_xxx.yaml として4本置く(ファイル名の順が投稿順)
+# `python -m shorts.sticker_kit package <名前> <フォルダ名>` で、動画・投稿文・予約表・zipが一式できる
+# `*ここ*` は強調色、`\n` は改行。1行14文字くらいまでが読みやすい
+# ─────────────────────────────────────────────
+type: sticker
+variant: chat            # chat(トーク型) / tempo(テンポ・1日・ウラ側・ギャップ型など) / quiz(クイズ型)
+
+title: "スタンプ名の\n*後半*"      # 最後の画面に出るスタンプ名
+search: "検索ワード"               # ショップで一番上に出る言葉(ユーザーに確認する)
+stickers_dir: assets/stickers/<名前>
+count: 16                          # 販売している種類の数(一覧の「全○種」に使う)
+cta_sub: "*この○○*が目印！\nプロフのリンクからも買えます"
+main_sticker: 01.png               # 最後の画面の大きいスタンプ
+bpm: 110                           # BGMのテンポ(tempo型は120、quizは100くらい)
+
+theme:                             # キャラの色に合わせる(LINEの緑や青灰色は使わない)
+  bg: "#F7F1E8"
+  bg2: "#ECE2D4"
+  pattern: "#FFFFFF"
+  text: "#2B2118"
+  accent: "#2D5BC8"
+  header: "#39405A"
+  chat_bg: "#FCFAF7"
+  them: "#EEEAE4"
+  me: "#DCE6FF"
+
+post:
+  label: トーク型        # 動画ファイル名に入る型の名前
+  time: "21:00"          # 投稿時間(TikTok・YouTube・Instagram 共通)
+
+# ── 最初の2秒 ──
+hook: "*刺さる一言*\nここに"
+hook_sticker: 01.png
+
+# ── variant: chat の場合 ──
+chats:
+  - caption: "*場面*の説明"
+    partner: "相手の名前"
+    messages:
+      - {from: them, text: "相手のメッセージ"}
+      - {from: me, sticker: 02.png, time: "21:00"}
+  - caption: "で、*同期*に聞かれる"   # 最後は「どこの？」→ 検索ワードで締める
+    partner: "同期のゆうた"
+    messages:
+      - {from: them, text: "そのスタンプ何？\n私も欲しい"}
+      - {from: me, text: "「検索ワード」で\n検索してみて！"}
+
+# ── variant: tempo の場合 ──
+# tempo_tag: "画面上の小さな見出し"
+# items:
+#   - {label: "*場面*", sticker: 03.png}          # 1個 = 約1秒
+#   - {label: "文字だけの場面", sec: 1.0, size: 120}  # sticker を書かなければ文字だけ
+
+# ── variant: quiz の場合 ──
+# progress_bar: false
+# show_lineup: false
+# quiz:
+#   choices: [01.png, 02.png, 03.png, 04.png]
+#   ask: "コメントで番号おしえて！"
+#   sec: 5.0
+
+lineup_text: "毎日使える\n*全16種*"   # 全種類一覧の見出し(省略可)
+
+# ── 投稿文(package で 投稿文.md と 予約表.csv にまとまる) ──
+captions:
+  tiktok:
+    caption: |
+      1行目で共感させる
+      「検索ワード」で検索 or プロフのリンクから
+      コメントを誘う問いかけ
+    hashtags: [LINEスタンプ, あるある, 検索ワード]      # 5個まで
+  tiktok_pin: |
+    スタンプはプロフのリンクから
+    LINEスタンプショップで「検索ワード」検索でも出てきます
+    問いかけ
+  instagram:
+    caption: |
+      少し長めの説明、スタンプの中身を箇条書きで
+      LINEスタンプショップで「検索ワード」と検索🔍
+      プロフィールのリンクからも買えます
+      保存しておいてね📌
+    hashtags: [LINEスタンプ, クリエイターズスタンプ, スタンプ名]   # 5個まで
+  stories: |
+    1枚目(動画): 一言 / リンクスタンプの文字「○○を見る」
+    2枚目(スタンプ画像): アンケート「質問」→ 選択肢A / 選択肢B
+  youtube_title: "検索されやすい言葉を先頭に【LINEスタンプ】 #shorts"
+  youtube_desc: |
+    説明
+    ▼スタンプはこちら
+    (ここにスタンプショップのURL)
+    LINEスタンプショップで「検索ワード」と検索しても出てきます。
+    #LINEスタンプ
+  youtube_pin: |
+    スタンプはこちらから
+    (ここにスタンプショップのURL)
+  x:
+    caption: |
+      X用(日本語140文字相当まで。package が文字数をチェック)
+    hashtags: [LINEスタンプ]
+  x_reply: |
+    スタンプはこちらから
+    (ここにスタンプショップのURL)
+  threads: |
+    会話っぽい独り言(1つ目。リンクは入れない)
+  threads_2: |
+    買う場所とURL(自分の投稿につなげる2つ目)

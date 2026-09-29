@@ -1,0 +1,391 @@
+<title>keishi studio PV台本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: an AV shooting script. Timecode rail on the left, then PICTURE / SUPER / SOUND columns per cut; stacks to one column on phones. */
+:root {
+  --paper: #f4f5f7;
+  --sheet: #ffffff;
+  --ink: #15171c;
+  --ink-2: #555b68;
+  --rule: #dde0e6;
+  --signal: #2f5bff;      /* the one accent: cursor / cut marks */
+  --signal-soft: #e6ecff;
+  --hit: #e2434b;         /* marks impacts in the sound column */
+  --jp: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1115; --sheet: #171a20; --ink: #e9ebf0; --ink-2: #9aa1b0; --rule: #2a2f39;
+    --signal: #7d9bff; --signal-soft: #1d2540; --hit: #ff6f76; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1115; --sheet: #171a20; --ink: #e9ebf0; --ink-2: #9aa1b0; --rule: #2a2f39;
+  --signal: #7d9bff; --signal-soft: #1d2540; --hit: #ff6f76; color-scheme: dark;
+}
+html, body { background: var(--paper); color: var(--ink); }
+body { font-family: var(--jp); font-size: 15px; line-height: 1.8; padding-inline: 16px; padding-block: 28px 64px; }
+.page { max-width: 1040px; margin: 0 auto; display: grid; gap: 44px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+.muted { color: var(--ink-2); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.label { font: 500 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+
+/* ---------- title block, like a script cover ---------- */
+.cover { display: grid; gap: 18px; border-bottom: 2px solid var(--ink); padding-bottom: 22px; }
+.cover h1 { font-weight: 900; font-size: clamp(30px, 5.4vw, 52px); line-height: 1.15; letter-spacing: -.01em; }
+.cover h1 .caret { display: inline-block; width: .08em; height: .9em; background: var(--signal); vertical-align: -.08em; margin-left: .06em; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cover h1 .caret { animation: none; } }
+.slate { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; border: 1px solid var(--rule); background: var(--sheet); }
+.slate div { padding: 10px 14px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); min-width: 0; }
+.slate b { display: block; font-weight: 700; font-size: 15px; }
+.note { font-size: 13px; color: var(--ink-2); max-width: 70ch; }
+
+section { display: grid; gap: 18px; }
+section > h2 { font-size: 22px; font-weight: 900; display: flex; gap: 12px; align-items: baseline; }
+section > h2 .mono { font-size: 13px; color: var(--signal); font-weight: 600; }
+.lede { max-width: 68ch; color: var(--ink-2); }
+
+/* ---------- research ---------- */
+.refs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+.ref { background: var(--sheet); padding: 16px 18px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.ref h3 { font-size: 16px; font-weight: 700; }
+.ref .src { font: 400 12px var(--mono); color: var(--ink-2); }
+.ref p { font-size: 14px; }
+.ref .take { font-size: 14px; border-top: 1px dashed var(--rule); padding-top: 8px; margin-top: 4px; }
+.ref .take b { color: var(--signal); font-weight: 700; }
+
+.principles { display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.principles li { display: grid; grid-template-columns: 2.2em 1fr; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.principles { list-style: none; margin: 0; padding: 0; counter-reset: p; }
+.principles li::before { counter-increment: p; content: counter(p, decimal-leading-zero); font: 600 13px var(--mono); color: var(--signal); padding-top: 3px; }
+.principles b { font-weight: 700; }
+
+/* ---------- concept ---------- */
+.concept { background: var(--ink); color: var(--paper); padding: 28px 26px; display: grid; gap: 14px; }
+.concept .label { color: color-mix(in srgb, var(--paper) 60%, transparent); }
+.concept .line { font-weight: 900; font-size: clamp(26px, 4.6vw, 40px); line-height: 1.3; }
+.concept p { max-width: 64ch; color: color-mix(in srgb, var(--paper) 82%, transparent); }
+.concept .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 6px; }
+.concept .rules div { border-top: 1px solid color-mix(in srgb, var(--paper) 30%, transparent); padding-top: 10px; font-size: 14px; }
+.concept .rules b { display: block; color: var(--paper); }
+
+/* ---------- energy curve ---------- */
+.curve { background: var(--sheet); border: 1px solid var(--rule); padding: 14px 14px 6px; }
+.curve svg { width: 100%; height: auto; display: block; }
+.curve text { font-family: var(--mono); font-size: 10px; fill: var(--ink-2); }
+.curve .act { font-family: var(--jp); font-size: 11px; fill: var(--ink); font-weight: 700; }
+.curve .area { fill: var(--signal-soft); }
+.curve .ln { fill: none; stroke: var(--signal); stroke-width: 2; }
+.curve .grid { stroke: var(--rule); stroke-width: 1; }
+.curve .hitmark { fill: var(--hit); }
+
+/* ---------- AV script ---------- */
+.script { display: grid; background: var(--sheet); border: 1px solid var(--rule); }
+.cut { display: grid; grid-template-columns: 96px 1.35fr 1fr 1fr; border-bottom: 1px solid var(--rule); }
+.cut:last-child { border-bottom: 0; }
+.cut > * { padding: 14px 16px; min-width: 0; border-right: 1px solid var(--rule); }
+.cut > *:last-child { border-right: 0; }
+.cut.head { background: var(--paper); }
+.cut.head > * { padding-block: 8px; }
+.tc { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); display: grid; gap: 4px; align-content: start; }
+.tc span { font: 500 10px var(--mono); letter-spacing: .1em; color: var(--signal); text-transform: uppercase; }
+.pic b { display: block; font-weight: 700; margin-bottom: 2px; }
+.pic p, .snd p { font-size: 14px; }
+.sup { font-weight: 900; font-size: 17px; line-height: 1.5; }
+.sup small { display: block; font: 400 12px var(--mono); color: var(--ink-2); margin-top: 4px; }
+.snd .hit { color: var(--hit); font-weight: 700; }
+.ref-tag { display: inline-block; margin-top: 8px; font: 500 11px var(--mono); color: var(--signal); background: var(--signal-soft); padding: 2px 8px; border-radius: 3px; }
+.act-row { background: var(--paper); padding: 8px 16px; font: 600 12px var(--mono); letter-spacing: .1em; color: var(--ink-2); border-bottom: 1px solid var(--rule); }
+.act-row b { color: var(--ink); font-family: var(--jp); letter-spacing: 0; margin-left: 8px; }
+@media (max-width: 760px) {
+  .cut { grid-template-columns: 1fr; }
+  .cut.head { display: none; }
+  .cut > * { border-right: 0; padding-block: 8px; }
+  .cut > .tc { padding-top: 14px; display: flex; gap: 10px; align-items: baseline; }
+  .cut > *:not(.tc)::before { content: attr(data-h); display: block; font: 500 10px var(--mono); letter-spacing: .12em; color: var(--ink-2); margin-bottom: 2px; }
+  .cut > *:last-child { padding-bottom: 16px; }
+}
+
+/* ---------- cut-downs + production ---------- */
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.box { background: var(--sheet); border: 1px solid var(--rule); padding: 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.box h3 { font-size: 16px; font-weight: 700; }
+.box ol, .box ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; font-size: 14px; }
+.box .mono { font-size: 12px; color: var(--signal); margin-right: 6px; }
+.sources ol { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; font-size: 13px; }
+.sources a { color: var(--signal); word-break: break-all; }
+a:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+</style>
+
+<main class="page">
+
+  <header class="cover">
+    <span class="label">Promotion video · Script draft 01</span>
+    <h1>言葉を、かたちに。<span class="caret" aria-hidden="true"></span></h1>
+    <div class="slate">
+      <div><span class="label">Client</span><b>keishi creative studio（仮）</b></div>
+      <div><span class="label">Length</span><b class="mono">30s / 15s / 6s</b></div>
+      <div><span class="label">Aspect</span><b class="mono">9:16 縦</b></div>
+      <div><span class="label">Media</span><b>Reels・Threads・TikTok</b></div>
+      <div><span class="label">Tempo</span><b class="mono">120 BPM</b></div>
+      <div><span class="label">VO</span><b>なし（文字で伝える）</b></div>
+    </div>
+    <p class="note">前提：ブランドは「AIで映像・デザイン・LINEスタンプなどを作るクリエイティブスタジオ」と仮定しています。スタジオ名、作品、色は差し替え前提です。参考にした動画の映像や素材は使わず、構成と演出の考え方だけを取り入れています。</p>
+  </header>
+
+  <section>
+    <h2><span class="mono">A</span>リサーチ：かっこいい映像は何をしているか</h2>
+    <p class="lede">評価の高いプロモーション映像、タイトルバック、予告編、SNS広告の作り方を調べて、今回そのまま使える考え方を抜き出しました。</p>
+    <div class="refs">
+      <article class="ref">
+        <span class="src">Apple / 製品フィルム</span>
+        <h3>ゆっくり見せて、光で語る</h3>
+        <p>製品は「ヒーローの登場 → 細部 → 使われる場面」の3部構成。登場は光の当たり方を変えながらゆっくり見せます。文字は1場面に短い1文だけで、動きは控えめです。</p>
+        <p class="take"><b>使う：</b>途中に1回だけ、動きを止めて1文を見せる「間」を作る。</p>
+      </article>
+      <article class="ref">
+        <span class="src">Nike “You Can't Stop Us” (2020, W+K)</span>
+        <h3>形と動きが一致した瞬間につなぐ</h3>
+        <p>画面を左右に割り、別々の選手の動きを鏡のようにつないだ90秒。4,000本の素材から36組の対をつくり、合成に1,000時間以上かけたと言われています。</p>
+        <p class="take"><b>使う：</b>「入力した言葉」と「できあがった作品」を左右に並べ、形がそろった瞬間に切り替える。</p>
+      </article>
+      <article class="ref">
+        <span class="src">Linear / 機能紹介フィルム</span>
+        <h3>ナレーションなしで、1動作ずつ見せる</h3>
+        <p>ナレーションも素材映像も使わず、実際の画面を1操作ずつ見せて20秒ほどで伝えます。見る人が「本物だ」と信じられることを優先しています。</p>
+        <p class="take"><b>使う：</b>実際の入力画面（カーソルと打鍵）を映像の芯にする。作り物っぽいUIは出さない。</p>
+      </article>
+      <article class="ref">
+        <span class="src">Se7en タイトルバック (1995, Kyle Cooper)</span>
+        <h3>質感で世界観を決める</h3>
+        <p>文字を手で引っかき、フィルムで撮影した、ほぼアナログな作り。文字のゆがみや揺れだけで作品の空気を伝え、以降のモーションデザインに大きな影響を与えました。</p>
+        <p class="take"><b>使う：</b>デジタルでも薄いノイズやフィルムの粒子を乗せて、手触りを残す。</p>
+      </article>
+      <article class="ref">
+        <span class="src">Spotify Wrapped</span>
+        <h3>スマホ画面いっぱいの太字と、少ない色</h3>
+        <p>高コントラストの限られた色の上に大きな太字を置き、文字は必ず平らな色面に乗せて読みやすくします。形式は毎年同じで、色と書体だけを変えています。</p>
+        <p class="take"><b>使う：</b>縦画面で文字を大きく、1画面1メッセージ。色は黒・白・アクセント1色に絞る。</p>
+      </article>
+      <article class="ref">
+        <span class="src">Nothing Phone (3) ティザー</span>
+        <h3>1つの視覚言語を最後まで貫く</h3>
+        <p>「光が言葉になる」という一文と、ドットの並び（ドットマトリクス）だけで新機能を予告しました。見せすぎず、1つの表現で印象を統一しています。</p>
+        <p class="take"><b>使う：</b>全編を「点滅するカーソル」で貫く。最後は作品1つ1つをドットにしてロゴを組む。</p>
+      </article>
+      <article class="ref">
+        <span class="src">Apple “Think Different” (1997)</span>
+        <h3>宣言文の組み立て</h3>
+        <p>「どんな人か」→「どう振る舞うか」→「だから世界を変える」と積み上げ、最後にロゴと2語だけ。白黒映像とナレーションだけで60秒を持たせました。</p>
+        <p class="take"><b>使う：</b>テロップを「きっかけ → できること → 約束」の順で積み上げる。</p>
+      </article>
+      <article class="ref">
+        <span class="src">映画予告編の構成</span>
+        <h3>3幕で盛り上げて、最後に一撃</h3>
+        <p>静かな導入 → 期待を積む中盤 → 音と絵が最も密な終盤、の波で作ります。上昇音のあとに一瞬の無音を入れてから衝撃音を入れ、最後は短い締め（ボタン）で終えます。</p>
+        <p class="take"><b>使う：</b>0.1秒の無音 → 衝撃を2回だけ。締めはEnterキーの音で暗転。</p>
+      </article>
+      <article class="ref">
+        <span class="src">SNS広告の最初の3秒</span>
+        <h3>1.7秒で判断される</h3>
+        <p>面白くなければ約1.7秒でスクロールされる、という調査があります。3秒後にも見続けている人の割合（フック率）はTikTokで40%以上、Metaで30%以上が良い目安とされます。音なしで見る人も多いので、最初の画面は文字で伝わる必要があります。</p>
+        <p class="take"><b>使う：</b>0秒目から文字を打ち始める。ロゴから始めない。</p>
+      </article>
+    </div>
+
+    <h3 style="font-size:17px;font-weight:900;margin-top:10px">今回採用する演出の原則</h3>
+    <ol class="principles">
+      <li><span><b>ロゴから始めない。</b>0秒目に「何が起きるか気になる」動きを置く。ロゴは最後に1回だけ。</span></li>
+      <li><span><b>音なしでも伝わる。</b>すべての要点をテロップで出す。音は気持ちよさを足す役。</span></li>
+      <li><span><b>1画面1メッセージ。</b>文字は大きく、平らな色面に乗せる。</span></li>
+      <li><span><b>形がそろった瞬間に切る。</b>文字の曲線と作品の輪郭を重ねてつなぐ。</span></li>
+      <li><span><b>途中で1回止める。</b>速いカットの後に、1文だけの静かな場面を置く。</span></li>
+      <li><span><b>だんだん速く。</b>終盤はカットの長さを1秒 → 0.5秒 → 0.25秒と縮める。</span></li>
+      <li><span><b>衝撃は2回まで。</b>直前に0.1秒の無音を入れる。多すぎると効かない。</span></li>
+      <li><span><b>質感を1枚足す。</b>薄いフィルムの粒子と周辺減光で、CGの平たさを消す。</span></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="mono">B</span>コンセプト</h2>
+    <div class="concept">
+      <span class="label">Key line</span>
+      <p class="line">打った言葉が、<br>そのまま作品になる。</p>
+      <p>このスタジオの価値は「思いついた言葉を、すぐに形にできる」こと。映像全体を、白い画面で点滅するカーソルから始めます。言葉を打つたびに、その言葉が作品に変わっていきます。ナレーションは使わず、打鍵とテロップだけで進めます。</p>
+      <div class="rules">
+        <div><b>貫く要素</b>点滅するカーソル。全カットの始まりと終わりに必ず出す。</div>
+        <div><b>色</b>黒・白と、アクセント1色（カーソルの色）。作品の色だけが例外。</div>
+        <div><b>書体</b>太いゴシック1書体。数字と英字は等幅書体。</div>
+        <div><b>質感</b>薄いフィルムの粒子、周辺減光、光のにじみ。</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="mono">C</span>30秒版 台本</h2>
+    <p class="lede">予告編と同じく、静 → 積み上げ → 静止 → 最大 → 締めの波で作ります。下のグラフは盛り上がりの強さで、赤い点が衝撃音の位置です。</p>
+
+    <div class="curve" aria-label="30秒間の盛り上がりの推移">
+      <svg viewBox="0 0 1000 190" role="img">
+        <title>盛り上がりの推移。0から1.5秒で一度上がり、4秒から10秒で段階的に上がり、10秒から14秒で下がって静止し、14秒から22秒で最大まで上がり、22秒で頂点、その後ロゴで落ち着く。</title>
+        <g class="grid">
+          <line x1="20" y1="150" x2="980" y2="150"/>
+          <line x1="20" y1="20" x2="20" y2="150"/>
+        </g>
+        <path class="area" d="M20,150 L20,140 L68,60 L68,95 L148,85 L148,100 L340,50 L340,138 L468,128 L468,110 L724,24 L724,18 L760,70 L916,110 L980,120 L980,150 Z"/>
+        <polyline class="ln" points="20,140 68,60 68,95 148,85 148,100 340,50 340,138 468,128 468,110 724,24 724,18 760,70 916,110 980,120"/>
+        <circle class="hitmark" cx="68" cy="60" r="5"/>
+        <circle class="hitmark" cx="724" cy="18" r="5"/>
+        <text x="20" y="168">0</text><text x="148" y="168">4</text><text x="340" y="168">10</text><text x="468" y="168">14</text><text x="724" y="168">22</text><text x="916" y="168">28</text><text x="962" y="168">30s</text>
+        <text class="act" x="26" y="184">つかみ</text>
+        <text class="act" x="170" y="184">積み上げ</text>
+        <text class="act" x="360" y="184">静止</text>
+        <text class="act" x="520" y="184">最大</text>
+        <text class="act" x="770" y="184">ロゴ・締め</text>
+      </svg>
+    </div>
+
+    <div class="script" role="table" aria-label="30秒版の台本">
+      <div class="cut head" role="row">
+        <div class="label" role="columnheader">TC</div>
+        <div class="label" role="columnheader">映像</div>
+        <div class="label" role="columnheader">テロップ</div>
+        <div class="label" role="columnheader">音</div>
+      </div>
+
+      <div class="act-row">ACT 1<b>つかみ（最初の3秒で止める）</b></div>
+      <div class="cut" role="row">
+        <div class="tc" role="cell">0:00.0<span>Hook</span></div>
+        <div class="pic" role="cell" data-h="映像"><b>白い画面、中央でカーソルが点滅</b><p>0.3秒後にいきなり打ち始める。1文字ごとに画面がわずかに押し込まれるように揺れる。</p><span class="ref-tag">SNSの3秒</span></div>
+        <div class="sup" role="cell" data-h="テロップ">ロゴ、つくって。<small>入力文字そのものがテロップ</small></div>
+        <div class="snd" role="cell" data-h="音"><p>無音 → 打鍵音7回。音楽はまだ入れない。</p></div>
+      </div>
+      <div class="cut" role="row">
+        <div class="tc" role="cell">0:01.2<span>Hit 1</span></div>
+        <div class="pic" role="cell" data-h="映像"><b>Enterで白黒が反転、文字が粒子になって弾ける</b><p>弾けた粒子が渦を巻いて集まり、「つ」の曲線がそのままロゴの曲線に重なって、ロゴの形に着地する。</p><span class="ref-tag">Nike：形でつなぐ</span></div>
+        <div class="sup" role="cell" data-h="テロップ">3秒で、完成。<small>右下に小さく経過秒数 00:03 を表示</small></div>
+        <div class="snd" role="cell" data-h="音"><p>Enter音 → <span class="hit">0.1秒の無音 → 衝撃音</span> → 粒子が集まる上昇音、着地音。ここから120BPMのビートが始まる。</p></div>
+      </div>
+
+      <div class="act-row">ACT 2<b>積み上げ（できることを4つ）</b></div>
+      <div class="cut" role="row">
+        <div class="tc" role="cell">0:04.0<span>Split ×4</span></div>
+        <div class="pic" role="cell" data-h="映像"><b>画面を上下に割る：上＝入力欄、下＝作品</b><p>1.5秒（3拍）ごとに入れ替え。<br>① 「春のポスター」→ ポスターが3枚めくれる<br>② 「キャラクター」→ 逆光のシルエットが立ち上がる<br>③ 「LINEスタンプ」→ 8枚が格子状に弾んで並ぶ<br>④ 「動画」→ 作品がフィルムのコマになって流れ出す</p><span class="ref-tag">Linear：1動作ずつ</span></div>
+        <div class="sup" role="cell" data-h="テロップ">ポスターも。<br>キャラも。<br>スタンプも。<br>動画も。<small>入力と同時に下へ大きく表示</small></div>
+        <div class="snd" role="cell" data-h="音"><p>キック＋ハイハット。切り替えは必ず拍の頭。スタンプは弾むたびにポップ音、動画は映写機の回転音。</p></div>
+      </div>
+
+      <div class="act-row">ACT 2.5<b>静止（1文だけ見せる間）</b></div>
+      <div class="cut" role="row">
+        <div class="tc" role="cell">0:10.0<span>Pause</span></div>
+        <div class="pic" role="cell" data-h="映像"><b>暗転して、黒地に白い1文</b><p>文字の上を光の帯がゆっくり横切る。カメラはごくゆっくり寄っていく。4秒間ほかは何も動かさない。</p><span class="ref-tag">Apple：ゆっくり見せる</span></div>
+        <div class="sup" role="cell" data-h="テロップ">思いついたら、<br>もう形にできる。</div>
+        <div class="snd" role="cell" data-h="音"><p>ビートを止め、持続音だけ。光の帯に合わせてキラキラ音。</p></div>
+      </div>
+
+      <div class="act-row">ACT 3<b>最大（作品の連打）</b></div>
+      <div class="cut" role="row">
+        <div class="tc" role="cell">0:14.0<span>Montage</span></div>
+        <div class="pic" role="cell" data-h="映像"><b>作品を次々に見せる。カットはだんだん速く</b><p>1秒×2 → 0.5秒×4 → 0.25秒×8。全カットで作品の中心を画面の同じ位置にそろえ、目線が動かないようにする。</p><span class="ref-tag">予告編：終盤が最も密</span></div>
+        <div class="sup" role="cell" data-h="テロップ">画面の隅で作品の種類が高速で切り替わる<small>例：POSTER / CHARACTER / STICKER / MOVIE / LOGO …</small></div>
+        <div class="snd" role="cell" data-h="音"><p>ビートが戻り、スネアの連打と上昇音。カットのたびにシャッター音を小さく。</p></div>
+      </div>
+      <div class="cut" role="row">
+        <div class="tc" role="cell">0:22.0<span>Hit 2</span></div>
+        <div class="pic" role="cell" data-h="映像"><b>全作品が一気に引いて、無数のタイルになる</b><p>タイル1枚1枚がドットになってロゴを組む（近くで見ると作品、離れるとロゴ）。</p><span class="ref-tag">Nothing：1つの視覚言語</span></div>
+        <div class="sup" role="cell" data-h="テロップ">（文字なし）</div>
+        <div class="snd" role="cell" data-h="音"><p><span class="hit">0.1秒の無音 → 最大の衝撃音＋低い金管のような重低音</span>、シンバルの余韻。</p></div>
+      </div>
+
+      <div class="act-row">END<b>ロゴと締め</b></div>
+      <div class="cut" role="row">
+        <div class="tc" role="cell">0:24.0<span>Logo</span></div>
+        <div class="pic" role="cell" data-h="映像"><b>ロゴとキャッチコピー。下でカーソルが点滅</b><p>余計な動きはなし。光のにじみと粒子だけがゆっくり動く。</p><span class="ref-tag">Think Different：ロゴと数語</span></div>
+        <div class="sup" role="cell" data-h="テロップ">keishi creative studio<br>言葉を、かたちに。</div>
+        <div class="snd" role="cell" data-h="音"><p>鐘のような音と、持続音の余韻。</p></div>
+      </div>
+      <div class="cut" role="row">
+        <div class="tc" role="cell">0:28.0<span>Button</span></div>
+        <div class="pic" role="cell" data-h="映像"><b>カーソルが連絡先を打って、Enterで暗転</b><p>最後の1コマは黒。ループ再生されたとき、冒頭の白い画面にきれいにつながる。</p><span class="ref-tag">予告編：短い締め</span></div>
+        <div class="sup" role="cell" data-h="テロップ">@keishi_studio<br>DMでご相談ください<small>アカウント名は仮</small></div>
+        <div class="snd" role="cell" data-h="音"><p>打鍵音 → Enter音で全部の音を切る。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="mono">D</span>短縮版</h2>
+    <div class="two">
+      <div class="box">
+        <h3>15秒版（広告・ストーリーズ向け）</h3>
+        <ol>
+          <li><span class="mono">0:00</span>「ロゴ、つくって。」→ Enter → 衝撃音でロゴが組み上がる</li>
+          <li><span class="mono">0:03</span>上下分割で4つを0.75秒ずつ（ポスター／キャラ／スタンプ／動画）</li>
+          <li><span class="mono">0:06</span>作品の連打（0.25秒×12）</li>
+          <li><span class="mono">0:09</span>タイルがロゴを組む（2回目の衝撃）</li>
+          <li><span class="mono">0:11</span>ロゴ＋「言葉を、かたちに。」＋連絡先 → Enterで暗転</li>
+        </ol>
+        <p class="note">静止の場面は削ります。15秒では間より密度を優先します。</p>
+      </div>
+      <div class="box">
+        <h3>6秒版（YouTubeの冒頭広告・ループ用）</h3>
+        <ol>
+          <li><span class="mono">0:00</span>白い画面に「ロゴ、つくって。」</li>
+          <li><span class="mono">0:02</span>Enter → 粒子 → ロゴ（衝撃音）</li>
+          <li><span class="mono">0:04</span>「言葉を、かたちに。」＋ @keishi_studio</li>
+        </ol>
+        <p class="note">最後のコマを白に戻すと、無限ループに見えます。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="mono">E</span>制作メモ</h2>
+    <div class="two">
+      <div class="box">
+        <h3>用意してもらうもの</h3>
+        <ul>
+          <li>スタジオ名とロゴ（なければロゴも作ります）</li>
+          <li>作品画像 12〜20枚（ポスター、キャラ、スタンプ、動画の1コマなど）</li>
+          <li>最後に出す連絡先（アカウント名、DM、URL）</li>
+          <li>アクセントの色（決まっていなければ候補を出します）</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3>作り方（前回と同じ仕組み）</h3>
+        <ul>
+          <li>映像はブラウザのCanvasで1コマずつ描き、1080×1920・30fpsで書き出し</li>
+          <li>音楽と効果音はプログラムで合成し、カットの時刻にぴったり合わせる</li>
+          <li>ページ上でコマ送りしながら調整し、決まったらMP4にする</li>
+          <li>公開前チェック：音を消して見ても意味が伝わるか、3秒目で何が起きているか</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sources">
+    <h2><span class="mono">F</span>参考にした資料</h2>
+    <ol>
+      <li><a href="https://magazine.workingnotworking.com/creative-work-blog/you-cant-stop-us-nike-ad" target="_blank" rel="noopener">How the Spot of the Summer Spliced Together（Nike “You Can't Stop Us”）— Working Not Working</a></li>
+      <li><a href="https://www.marketing-interactive.com/analysis-nikes-viral-ad-goes-way-beyond-brilliant-editing" target="_blank" rel="noopener">Analysis: Nike's latest viral ad goes way beyond brilliant editing — Marketing-Interactive</a></li>
+      <li><a href="https://www.manfrotto.com/global-en/stories/how-to-shoot-cinematic-tech-videos-like-apple/" target="_blank" rel="noopener">How to shoot cinematic tech videos like Apple — Manfrotto</a></li>
+      <li><a href="https://www.moonb.io/blog/kinetic-typography" target="_blank" rel="noopener">7 Kinetic Typography Examples for Brand Video — moonb</a></li>
+      <li><a href="https://getlago.com/blog/we-killed-our-motion-design-job" target="_blank" rel="noopener">We killed our motion design job（Linearの機能紹介フィルムについて）— Lago</a></li>
+      <li><a href="https://thefincheranalyst.com/2025/09/26/30-years-of-kyle-coopers-classic-title-sequence-for-se7en/" target="_blank" rel="noopener">30 Years of Kyle Cooper's Classic Title Sequence for SE7EN — The Fincher Analyst</a></li>
+      <li><a href="https://alexjimenezdesign.substack.com/p/three-design-elements-that-made-spotify" target="_blank" rel="noopener">Three Design Elements That Made Spotify Wrapped 2024 Great</a></li>
+      <li><a href="https://www.itsnicethat.com/features/spotify-wrapped-campaign-identity-2023-graphic-design-301123" target="_blank" rel="noopener">Spotify Wrapped campaign identity 2023 — It's Nice That</a></li>
+      <li><a href="https://androidauthority.com/nothing-phone-3-glyph-matrix-teaser-3569071" target="_blank" rel="noopener">Nothing Phone (3) Glyph Matrix teaser — Android Authority</a></li>
+      <li><a href="https://www.mentalfloss.com/article/28936/heres-crazy-ones" target="_blank" rel="noopener">Here's to the Crazy Ones — Mental Floss</a></li>
+      <li><a href="https://www.ableton.com/es/blog/learn-how-to-make-high-impact-sounds-for-movies-and-trailers" target="_blank" rel="noopener">Learn How to Make High-Impact Sounds for Movies and Trailers — Ableton</a></li>
+      <li><a href="https://forums.taxi.com/post483850.html" target="_blank" rel="noopener">Movie Trailer “Three Act” format — TAXI Forums</a></li>
+      <li><a href="https://jellymarketing.ca/blog/stop-the-scroll-in-3-seconds-secrets-to-high-performing-short-form-video-hooks/" target="_blank" rel="noopener">Stop the Scroll in 3 Seconds — Jelly Marketing</a></li>
+      <li><a href="https://posteverywhere.ai/social-media-terms/hook-rate" target="_blank" rel="noopener">Hook rate — PostEverywhere</a></li>
+    </ol>
+  </section>
+
+</main>

@@ -58,6 +58,34 @@ def _fix_name(info: zipfile.ZipInfo) -> str:
     return unicodedata.normalize("NFC", name)  # Macの「ﾀ+゛」のような分解された濁点をまとめる
 
 
+def _name_from(text_: str) -> tuple[str, int | None]:
+    """「まんまるモフ雲の感情天気予報_LINEスタンプ_16個」→ ("まんまるモフ雲の感情天気予報", 16)"""
+    t = unicodedata.normalize("NFC", text_).strip()
+    m = re.search(r"(\d+)\s*(個|種|stickers?)?\s*$", t)
+    count = int(m.group(1)) if m else None
+    t = re.sub(r"[_\s-]*LINE.*$", "", t, flags=re.I)          # 「_LINEスタンプ…」以降を消す
+    t = re.sub(r"[_\s-]*\d+\s*(個|種)?$", "", t)             # 末尾の「_16個」を消す
+    return t.strip(" _-"), count
+
+
+def sticker_name(zip_path: str, entries: list[str]) -> tuple[str, int | None, str]:
+    """正式なスタンプ名を探す。(名前, 個数, どこから取ったか) を返す。見つからなければ名前は空"""
+    # 1) zipの中のフォルダ名(アップロードしても日本語が消えない)
+    tops = {e.split("/")[0] for e in entries if "/" in e and "__MACOSX" not in e}
+    if len(tops) == 1:
+        name, count = _name_from(tops.pop())
+        if name and "___" not in name:
+            return name, count, "zipの中のフォルダ名"
+    # 2) zipのファイル名(アップロード時に付く「xxxxxxxx-」を外す。日本語が「_」に化けていたら使わない)
+    stem = re.sub(r"^[0-9a-f]{8}-", "", os.path.splitext(os.path.basename(zip_path))[0])
+    name, count = _name_from(stem)
+    if name and "___" not in stem:
+        if name.isascii():
+            return name, count, "zipのファイル名。ただしローマ字なので正式名か確認が必要"
+        return name, count, "zipのファイル名"
+    return "", count, "見つからず(ファイル名の日本語が「_」に置き換わっていた)"
+
+
 def prepare(zip_path: str, slug: str) -> None:
     dst = os.path.join("assets", "stickers", slug)
     extra = dst + "_extra"
@@ -70,6 +98,7 @@ def prepare(zip_path: str, slug: str) -> None:
     serifs: list[tuple[str, str]] = []
     stickers, extras, dups = [], [], []
     with zipfile.ZipFile(zip_path) as zf:
+        official, count, source = sticker_name(zip_path, [_fix_name(i) for i in zf.infolist()])
         for info in sorted(zf.infolist(), key=_fix_name):
             name = _fix_name(info)
             base = os.path.basename(name)
@@ -99,6 +128,15 @@ def prepare(zip_path: str, slug: str) -> None:
     sheet = os.path.join("output", f"{slug}_sheet.png")
     _contact_sheet([os.path.join(dst, n + ".png") for n, _ in stickers], sheet)
 
+    info = {"name": official, "count": count or len(stickers), "name_source": source}
+    with open(os.path.join(extra, "info.yaml"), "w", encoding="utf-8") as f:
+        yaml.safe_dump(info, f, allow_unicode=True, sort_keys=False)
+    if official:
+        print(f"スタンプ名: {official}  ({source}から)")
+    else:
+        print(f"スタンプ名: ??? — {source}。ユーザーに正式名を聞くこと")
+    if count and count != len(stickers):
+        print(f"  ※ ファイル名では {count} 個ですが、取り込んだ画像は {len(stickers)} 個です")
     print(f"スタンプ {len(stickers)} 個 → {dst}/")
     for no, base in stickers:
         print(f"  {no}.png  ← {base}")
@@ -303,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("slug", help="英数字の名前(例: otter)")
     b = sub.add_parser("package", help="台本から動画・投稿文・予約表・zipを作る")
     b.add_argument("slug")
-    b.add_argument("folder", help="できあがりのフォルダ名(例: 社会人カワウソ)")
+    b.add_argument("folder", nargs="?", help="できあがりのフォルダ名。省略するとzipから読んだスタンプ名")
     b.add_argument("--start", default=dt.date.today().isoformat(), help="最初の投稿日を探し始める日 YYYY-MM-DD")
     b.add_argument("--days", default="火木土月", help="投稿する曜日の順番(例: 火木土月)")
     b.add_argument("--brand", default="brand.yaml")
@@ -312,7 +350,13 @@ def main(argv: list[str] | None = None) -> int:
     if ns.cmd == "prepare":
         prepare(ns.zip, ns.slug)
     else:
-        package(ns.slug, ns.folder, dt.date.fromisoformat(ns.start), ns.days, ns.brand, not ns.text_only)
+        folder = ns.folder
+        if not folder:
+            info_path = os.path.join("assets", "stickers", ns.slug + "_extra", "info.yaml")
+            folder = (yaml.safe_load(open(info_path, encoding="utf-8")) or {}).get("name") if os.path.exists(info_path) else None
+            if not folder:
+                sys.exit("スタンプ名がわからないので、フォルダ名を指定してください")
+        package(ns.slug, folder, dt.date.fromisoformat(ns.start), ns.days, ns.brand, not ns.text_only)
     return 0
 
 

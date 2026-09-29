@@ -1,0 +1,645 @@
+<title>keishi studio PV 試作</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: a vertical 9:16 monitor with the transport beside it on wide screens, under it on phones. Single committed dark look. */
+:root {
+  --ink: #0a0b0f;
+  --panel: #13151c;
+  --line: #262a36;
+  --accent: #3d63ff;
+  --accent-soft: #9fb3ff;
+  --text: #eceef4;
+  --muted: #8d93a5;
+  --jp: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--ink); color: var(--text); }
+body { font-family: var(--jp); padding-inline: 16px; padding-block: 20px 40px; line-height: 1.7; }
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; border-radius: 10px; overflow: hidden; justify-self: center; }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+h1 { font: 900 22px var(--jp); margin: 0; }
+.muted { color: var(--muted); font-size: 13px; margin: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 700 13px var(--jp); color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 100px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+.tc { font: 600 14px var(--mono); font-variant-numeric: tabular-nums; color: var(--accent-soft); }
+.tc small { color: var(--muted); font-weight: 500; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+.scenes { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.scenes li { border-bottom: 1px solid var(--line); }
+.scenes button { width: 100%; display: grid; grid-template-columns: 64px 1fr; gap: 10px; text-align: left; background: none; border: 0; border-radius: 0; padding: 10px 4px; font-weight: 500; }
+.scenes button:hover { background: var(--panel); }
+.scenes .t { font: 600 12px var(--mono); color: var(--accent-soft); padding-top: 2px; }
+.scenes b { display: block; font-weight: 700; }
+.scenes span.d { font-size: 12px; color: var(--muted); }
+.scenes li.on button { background: var(--panel); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="プロモーション映像の試作"></canvas></div>
+  <div class="side">
+    <div>
+      <h1>keishi studio PV 試作</h1>
+      <p class="muted">台本「言葉を、かたちに。」の30秒版。作品はすべて仮で、コードで描いています。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">🔊 音あり</button>
+      <button id="prev">◀ 1コマ</button>
+      <button id="next">1コマ ▶</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> ループ</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ul class="scenes" id="scenes"></ul>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outExpo: k => k >= 1 ? 1 : 1 - Math.pow(2, -10 * k),
+  inExpo: k => k <= 0 ? 0 : Math.pow(2, 10 * k - 10),
+  inOutExpo: k => k <= 0 ? 0 : k >= 1 ? 1 : k < .5 ? Math.pow(2, 20 * k - 10) / 2 : (2 - Math.pow(2, -20 * k + 10)) / 2,
+  outCubic: k => 1 - Math.pow(1 - k, 3),
+  inCubic: k => k * k * k,
+  inOutCubic: k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
+  outBack: k => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); },
+};
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+
+/* ================= copy & palette ================= */
+const BRAND = { name: 'keishi', sub: 'creative studio', tag: '言葉を、かたちに。', handle: '@keishi_studio', dm: 'DMでご相談ください', hook: 'ロゴ、つくって。' };
+const C = { ink: '#0a0b0f', paper: '#f2f2ee', accent: '#3d63ff', accentHi: '#8fa6ff', white: '#ffffff', grey: '#8d93a5' };
+const font = (w, px) => `${w} ${px}px "Zen Kaku Gothic New", "Hiragino Sans", sans-serif`;
+const mono = (w, px) => `${w} ${px}px "IBM Plex Mono", ui-monospace, monospace`;
+
+/* ================= schedule (also read by the sound generator) ================= */
+const SEGS = [
+  { word: '春のポスター', telop: 'ポスター', kind: 'poster' },
+  { word: 'キャラクター', telop: 'キャラ', kind: 'char' },
+  { word: 'LINEスタンプ', telop: 'スタンプ', kind: 'sticker' },
+  { word: '動画', telop: '動画', kind: 'movie' },
+];
+const HIT1 = 1.0, LAND = 2.5, SPLIT0 = 4.0, PAUSE0 = 10.0, MONT0 = 14.0, HIT2 = 22.0, LOGO0 = 24.0, BTN0 = 28.0, ENTER_END = 29.6;
+const CUES = { keys: [], enters: [], pops: [], flips: [], cuts: [], hits: [HIT1, HIT2], land: LAND, rise: [], projector: [], pause: [PAUSE0, MONT0], logo: LOGO0, end: ENTER_END };
+function buildCues() {
+  for (const k of ['keys', 'enters', 'pops', 'flips', 'cuts', 'rise', 'projector']) CUES[k] = [];
+  [...BRAND.hook].forEach((c, i) => CUES.keys.push(.3 + i * .1));
+  CUES.enters.push(HIT1);
+  SEGS.forEach((s, k) => {
+    const t0 = SPLIT0 + k * 1.5, n = [...s.word].length;
+    for (let i = 0; i < n; i++) CUES.keys.push(t0 + .05 + i * (.36 / Math.max(n - 1, 1)));
+    CUES.enters.push(t0 + .5);
+    if (s.kind === 'poster') for (let i = 0; i < 3; i++) CUES.flips.push(t0 + .55 + i * .15);
+    if (s.kind === 'char') CUES.rise.push([t0 + .5, t0 + 1.05]);
+    if (s.kind === 'sticker') for (let i = 0; i < 8; i++) CUES.pops.push(t0 + .55 + i * .07);
+    if (s.kind === 'movie') CUES.projector.push([t0 + .5, t0 + 1.5]);
+  });
+  /* montage: cuts get shorter towards the second hit */
+  let t = MONT0;
+  const durs = [1, 1, .5, .5, .5, .5, ...Array(8).fill(.25), ...Array(8).fill(.125), ...Array(15).fill(1 / 15)];
+  durs.forEach((d, i) => { CUES.cuts.push({ t, d, w: i }); t += d; });
+  [...BRAND.handle].forEach((c, i) => CUES.keys.push(BTN0 + .05 + i * .055));
+  CUES.enters.push(ENTER_END);
+}
+buildCues();
+window.CUES = CUES;
+
+/* ================= canvases ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const buf = document.createElement('canvas'), b = buf.getContext('2d');
+const tmp = document.createElement('canvas'), tg = tmp.getContext('2d');
+const HAS_FILTER = 'filter' in ctx;
+let S = 1;
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  const h = Math.round(w * 16 / 9);
+  for (const c of [cv, buf, tmp]) { c.width = w; c.height = h; }
+  S = w / LW;
+  buildGrain(); buildVignette(); render(T);
+}
+let grains = [], vignette;
+function buildGrain() {
+  grains = [0, 1, 2, 3].map(k => {
+    const c = document.createElement('canvas'); c.width = c.height = 160;
+    const g = c.getContext('2d'), im = g.createImageData(160, 160);
+    for (let i = 0; i < im.data.length; i += 4) { const v = hash(i * .37 + k * 999) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
+    g.putImageData(im, 0, 0); return c;
+  });
+}
+function buildVignette() {
+  vignette = document.createElement('canvas'); vignette.width = cv.width; vignette.height = cv.height;
+  const g = vignette.getContext('2d'), W = cv.width, H = cv.height;
+  const r = g.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .62);
+  r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(1, 'rgba(0,0,0,.55)');
+  g.fillStyle = r; g.fillRect(0, 0, W, H);
+}
+
+/* ================= silhouette (placeholder character) ================= */
+/*SIL*/
+let silCv = null;
+function buildSil() {
+  const res = 2, w = 300, h = 440, pad = 20;
+  silCv = document.createElement('canvas'); silCv.width = (w + pad * 2) * res; silCv.height = (h + pad * 2) * res;
+  const g = silCv.getContext('2d'); g.setTransform(res, 0, 0, res, pad * res, pad * res); g.fillStyle = '#060a18';
+  defaultSilhouette(g);
+}
+function drawSil(g, cx, bottom, height, glow, alpha = 1) {
+  const k = height / 480, w = silCv.width / 2 * k, h = silCv.height / 2 * k;
+  g.save(); g.globalAlpha = alpha; g.shadowColor = glow;
+  for (const bl of [26, 8]) { g.shadowBlur = bl * S; g.drawImage(silCv, cx - w / 2, bottom - h + 20 * k, w, h); }
+  g.shadowBlur = 0; g.drawImage(silCv, cx - w / 2, bottom - h + 20 * k, w, h); g.restore();
+}
+
+/* ================= logo ================= */
+function drawMark(g, cx, cy, size, col = C.white, cursor = C.accent, alpha = 1) {
+  g.save(); g.globalAlpha *= alpha;
+  g.strokeStyle = col; g.lineWidth = size * .17; g.lineCap = 'round';
+  g.beginPath(); g.arc(cx + size * .04, cy, size * .34, Math.PI * 1.1, Math.PI * .62); g.stroke();
+  g.fillStyle = cursor; g.fillRect(cx - size * .08, cy - size * .2, size * .1, size * .4);
+  g.restore();
+}
+function drawWordmark(g, cx, y, sc = 1, alpha = 1) {
+  g.save(); g.globalAlpha *= alpha; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillStyle = C.white; g.font = font(900, 64 * sc); g.fillText(BRAND.name, cx, y);
+  g.font = mono(500, 15 * sc); g.fillStyle = C.grey;
+  g.fillText([...BRAND.sub.toUpperCase()].join(' '), cx, y + 34 * sc);
+  g.restore();
+}
+
+/* ================= placeholder works ================= */
+const POSTER_PAL = [['#ff5a3c', '#ffe3d3', '#1b1b1b'], ['#1f3cff', '#ffd400', '#0b0b0b'], ['#0e7c66', '#f4efe2', '#0b0b0b'], ['#ffc7da', '#ff3d7f', '#2a1030'], ['#101820', '#fee715', '#ffffff'], ['#f4efe2', '#e2434b', '#111']];
+const POSTER_WORDS = [['SPRING', '春'], ['LIVE', '音'], ['OPEN', '開'], ['BLOOM', '花'], ['NIGHT', '夜'], ['TEA', '茶']];
+function poster(g, w, h, s) {
+  const [bg, fg, ink] = POSTER_PAL[s % POSTER_PAL.length], [en, jp] = POSTER_WORDS[s % POSTER_WORDS.length];
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  g.fillStyle = fg; g.beginPath(); g.arc(w * (.3 + hash(s) * .4), h * (.38 + hash(s + 1) * .12), w * (.28 + hash(s + 2) * .12), 0, 7); g.fill();
+  g.globalAlpha = .9; g.fillStyle = ink; g.fillRect(0, h * (.62 + hash(s + 3) * .08), w, h * .012); g.globalAlpha = 1;
+  g.fillStyle = ink; g.textBaseline = 'alphabetic';
+  g.font = font(900, w * .56); g.fillText(jp, w * .06, h * .9);
+  g.font = mono(600, w * .085); g.fillText(en, w * .07, h * .12);
+  g.font = mono(500, w * .045); g.fillText('2026.04.12 — 04.20', w * .07, h * .17);
+  g.textAlign = 'right'; g.fillText('No.' + String(s + 1).padStart(2, '0'), w * .93, h * .12); g.textAlign = 'left';
+}
+const GLOWS = ['#4f8dff', '#ff6fae', '#ffab3d', '#39d6a4', '#b07bff'];
+function character(g, w, h, s) {
+  const col = GLOWS[s % GLOWS.length];
+  const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#05060c'); bg.addColorStop(1, '#0c1024');
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  const cy = h * .45, r = g.createRadialGradient(w / 2, cy, 0, w / 2, cy, w * .62);
+  r.addColorStop(0, col); r.addColorStop(.35, col + '99'); r.addColorStop(1, col + '00');
+  g.fillStyle = r; g.fillRect(0, 0, w, h);
+  drawSil(g, w / 2, h * .93, h * .78, col);
+}
+const STICKER = [['OK!', '#ffd84d', 0], ['ありがと', '#ff9ec2', 1], ['おつ', '#9fe3c9', 2], ['了解', '#a9c4ff', 0], ['すき', '#ffb27a', 3], ['ねむ', '#d6c2ff', 4], ['えらい', '#ffe98a', 1], ['わーい', '#9fe7ff', 3]];
+function stickerFace(g, cx, cy, r, col, expr) {
+  g.save();
+  g.fillStyle = '#fff'; g.beginPath(); g.ellipse(cx, cy, r * 1.14, r * 1.06, 0, 0, 7); g.fill();
+  g.fillStyle = col; g.beginPath(); g.ellipse(cx, cy, r, r * .92, 0, 0, 7); g.fill();
+  g.beginPath(); g.moveTo(cx - r * .8, cy - r * .5); g.lineTo(cx - r * .62, cy - r * 1.12); g.lineTo(cx - r * .2, cy - r * .82); g.fill();
+  g.beginPath(); g.moveTo(cx + r * .8, cy - r * .5); g.lineTo(cx + r * .62, cy - r * 1.12); g.lineTo(cx + r * .2, cy - r * .82); g.fill();
+  g.fillStyle = '#1b1b24'; g.strokeStyle = '#1b1b24'; g.lineWidth = r * .09; g.lineCap = 'round';
+  const ey = cy - r * .08, ex = r * .36;
+  if (expr === 4) { for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(cx + sx * ex - r * .13, ey); g.lineTo(cx + sx * ex + r * .13, ey); g.stroke(); } }
+  else if (expr === 1) { for (const sx of [-1, 1]) { g.beginPath(); g.arc(cx + sx * ex, ey + r * .05, r * .13, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); } }
+  else for (const sx of [-1, 1]) { g.beginPath(); g.arc(cx + sx * ex, ey, r * .1, 0, 7); g.fill(); }
+  g.fillStyle = 'rgba(255,90,120,.45)'; for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(cx + sx * r * .58, cy + r * .2, r * .15, r * .09, 0, 0, 7); g.fill(); }
+  g.beginPath();
+  if (expr === 3) { g.arc(cx, cy + r * .2, r * .2, 0, Math.PI); g.fillStyle = '#1b1b24'; g.fill(); }
+  else if (expr === 2) { g.moveTo(cx - r * .12, cy + r * .26); g.lineTo(cx + r * .12, cy + r * .26); g.stroke(); }
+  else { g.arc(cx, cy + r * .16, r * .14, .15 * Math.PI, .85 * Math.PI); g.stroke(); }
+  g.restore();
+}
+function stickerText(g, s, x, y, px) {
+  g.save(); g.font = font(900, px); g.textAlign = 'center'; g.lineJoin = 'round';
+  g.strokeStyle = '#fff'; g.lineWidth = px * .32; g.strokeText(s, x, y);
+  g.fillStyle = '#1b1b24'; g.fillText(s, x, y); g.restore();
+}
+function sticker(g, w, h, s) {
+  const [txt, col, expr] = STICKER[s % STICKER.length];
+  g.fillStyle = '#f6f3ec'; g.fillRect(0, 0, w, h);
+  g.fillStyle = 'rgba(0,0,0,.05)';
+  for (let y = 12; y < h; y += 24) for (let x = 12; x < w; x += 24) { g.beginPath(); g.arc(x, y, 1.6, 0, 7); g.fill(); }
+  stickerFace(g, w / 2, h * .46, w * .3, col, expr);
+  stickerText(g, txt, w / 2, h * .86, w * .15);
+}
+function scene(g, w, h, s) {
+  const skies = [['#1d2350', '#f28b6d'], ['#0c1a2b', '#3f7ea6'], ['#2b1330', '#f0b35e'], ['#0f2a2a', '#8fd1b5']];
+  const [top, bot] = skies[s % skies.length];
+  const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, top); sky.addColorStop(1, bot);
+  g.fillStyle = sky; g.fillRect(0, 0, w, h);
+  g.fillStyle = 'rgba(255,240,220,.9)'; g.beginPath(); g.arc(w * (.3 + hash(s + 5) * .4), h * .5, w * .08, 0, 7); g.fill();
+  for (let L = 0; L < 3; L++) {
+    g.fillStyle = `rgba(10,12,24,${.35 + L * .25})`; g.beginPath(); g.moveTo(0, h);
+    for (let i = 0; i <= 12; i++) g.lineTo(w * i / 12, h * (.55 + L * .1) - hash(s * 13 + L * 7 + i) * h * .16);
+    g.lineTo(w, h); g.fill();
+  }
+  g.fillStyle = '#000'; g.fillRect(0, 0, w, h * .1); g.fillRect(0, h * .9, w, h * .1);
+}
+const MARK_NAMES = ['HANA', 'SORA', 'MORI', 'TSUKI', 'KUMO'];
+function logoWork(g, w, h, s) {
+  const pal = [['#111', '#f2f2ee'], ['#f2f2ee', '#111'], ['#ff5a3c', '#fff'], ['#0e7c66', '#f4efe2'], ['#1f3cff', '#fff']][s % 5];
+  g.fillStyle = pal[0]; g.fillRect(0, 0, w, h);
+  g.fillStyle = pal[1]; g.strokeStyle = pal[1];
+  const cx = w / 2, cy = h * .42, r = w * .2, kind = s % 3;
+  if (kind === 0) { for (let i = 0; i < 6; i++) { g.beginPath(); g.ellipse(cx + Math.cos(i * 1.047) * r * .5, cy + Math.sin(i * 1.047) * r * .5, r * .5, r * .5, 0, 0, 7); g.globalAlpha = .55; g.fill(); } g.globalAlpha = 1; }
+  else if (kind === 1) { g.beginPath(); g.moveTo(cx, cy - r); g.lineTo(cx + r, cy + r * .8); g.lineTo(cx - r, cy + r * .8); g.closePath(); g.fill(); g.fillStyle = pal[0]; g.beginPath(); g.arc(cx, cy + r * .25, r * .3, 0, 7); g.fill(); }
+  else { g.lineWidth = r * .22; g.beginPath(); g.arc(cx, cy, r, .2, Math.PI * 1.8); g.stroke(); g.beginPath(); g.arc(cx + r * .9, cy - r * .5, r * .18, 0, 7); g.fill(); }
+  g.fillStyle = pal[1]; g.textAlign = 'center';
+  g.font = mono(600, w * .1); g.fillText(MARK_NAMES[s % MARK_NAMES.length], cx, h * .78);
+  g.font = mono(500, w * .04); g.globalAlpha = .7; g.fillText('BRAND IDENTITY', cx, h * .84); g.globalAlpha = 1; g.textAlign = 'left';
+}
+const KINDS = [['POSTER', poster], ['CHARACTER', character], ['STICKER', sticker], ['MOVIE', scene], ['LOGO', logoWork]];
+const WORKS = Array.from({ length: 45 }, (_, i) => ({ kind: KINDS[i % 5][0], draw: KINDS[i % 5][1], seed: Math.floor(i / 5) + i * 3 }));
+function drawWork(g, i, x, y, w, h) {
+  const wk = WORKS[i % WORKS.length];
+  g.save(); g.translate(x, y); g.beginPath(); g.rect(0, 0, w, h); g.clip(); wk.draw(g, w, h, wk.seed); g.restore();
+}
+/* tiny thumbnails for the mosaic */
+let thumbs = [];
+function buildThumbs() {
+  thumbs = WORKS.map((_, i) => {
+    const c = document.createElement('canvas'); c.width = 60; c.height = 80;
+    const g = c.getContext('2d'); g.scale(60 / 300, 80 / 400); drawWork(g, i, 0, 0, 300, 400); return c;
+  });
+}
+
+/* ================= particles for the hook ================= */
+let PTS = [];
+function samplePoints(draw, step) {
+  const c = document.createElement('canvas'); c.width = LW; c.height = LH;
+  const g = c.getContext('2d'); draw(g);
+  const d = g.getImageData(0, 0, LW, LH).data, out = [];
+  for (let y = 0; y < LH; y += step) for (let x = 0; x < LW; x += step) if (d[(y * LW + x) * 4 + 3] > 128) out.push([x, y]);
+  return out;
+}
+const HOOK_Y = 470;
+function buildParticles() {
+  const src = samplePoints(g => { g.font = font(900, 46); g.textBaseline = 'middle'; const w = g.measureText(BRAND.hook).width; g.fillStyle = '#000'; g.fillText(BRAND.hook, 270 - w / 2, HOOK_Y); }, 3);
+  const dst = samplePoints(g => drawMark(g, 270, 420, 230, '#000', '#000'), 3);
+  const n = Math.min(src.length, 1400);
+  const pick = (arr, k) => arr[Math.floor(k * arr.length / n)];
+  const cs = [270, HOOK_Y], cd = [270, 420];
+  const ang = (p, c) => Math.atan2(p[1] - c[1], p[0] - c[0]);
+  const s = Array.from({ length: n }, (_, i) => pick(src, i)).sort((a, b2) => ang(a, cs) - ang(b2, cs));
+  const d = Array.from({ length: n }, (_, i) => pick(dst, i)).sort((a, b2) => ang(a, cd) - ang(b2, cd));
+  PTS = s.map((p, i) => ({ s: p, d: d[i], r: hash(i + 40), a: hash(i + 90) * 6.283 }));
+}
+
+/* mosaic mask: which tiles sit inside the logo mark */
+const TILE = 30, COLS = 18, ROWS = 32;
+let tileMask = [];
+function buildMask() {
+  const c = document.createElement('canvas'); c.width = LW; c.height = LH;
+  const g = c.getContext('2d'); drawMark(g, 270, 470, 520, '#000', '#000');
+  const d = g.getImageData(0, 0, LW, LH).data;
+  tileMask = [];
+  for (let r = 0; r < ROWS; r++) for (let q = 0; q < COLS; q++) {
+    const x = q * TILE + TILE / 2, y = r * TILE + TILE / 2;
+    tileMask.push(d[(Math.floor(y) * LW + Math.floor(x)) * 4 + 3] > 100);
+  }
+}
+
+/* ================= scenes ================= */
+function caret(x, y, h, t, col = C.accent, always = false) {
+  if (!always && (t * 2) % 1 > .55) return;
+  b.fillStyle = col; b.fillRect(x, y - h / 2, Math.max(2.5, h * .07), h);
+}
+function typedCount(times, t) { let n = 0; for (const k of times) if (k <= t) n++; return n; }
+
+function sceneHook(t) {
+  b.fillStyle = C.paper; b.fillRect(0, 0, LW, LH);
+  b.font = mono(500, 12); b.fillStyle = '#9a9ca6'; b.textAlign = 'center'; b.fillText('P R O M P T', 270, HOOK_Y - 62); b.textAlign = 'left';
+  const chars = [...BRAND.hook], n = typedCount(CUES.keys.slice(0, chars.length), t);
+  b.font = font(900, 46); b.textBaseline = 'middle';
+  const full = b.measureText(BRAND.hook).width, x0 = 270 - full / 2, sub = chars.slice(0, n).join('');
+  b.fillStyle = C.ink; b.fillText(sub, x0, HOOK_Y);
+  const cx = x0 + b.measureText(sub).width + 3;
+  const lastKey = n ? CUES.keys[n - 1] : -9;
+  caret(cx, HOOK_Y, 52, t, C.accent, t - lastKey < .25);
+  b.textBaseline = 'alphabetic';
+}
+
+function sceneBurst(t) {
+  b.fillStyle = C.ink; b.fillRect(0, 0, LW, LH);
+  const k1 = E.outExpo(seg(t, HIT1, HIT1 + .4)), k2 = seg(t, HIT1 + .3, LAND);
+  const land = E.outExpo(seg(t, LAND - .05, LAND + .3));
+  b.save(); b.globalCompositeOperation = 'lighter';
+  for (const p of PTS) {
+    const dx = p.s[0] - 270, dy = p.s[1] - HOOK_Y, dist = Math.hypot(dx, dy) + 1;
+    const bx = p.s[0] + (dx / dist * 60 + Math.cos(p.a) * 90) * (.4 + p.r) * k1;
+    const by = p.s[1] + (dy / dist * 60 + Math.sin(p.a) * 90) * (.4 + p.r) * k1;
+    const e = E.inOutExpo(clamp((k2 - p.r * .15) / .85));
+    let x = lerp(bx, p.d[0], e), y = lerp(by, p.d[1], e);
+    const sw = (1 - e) * 1.3 * (p.r > .5 ? 1 : -1), ox = x - 270, oy = y - 420;
+    x = 270 + ox * Math.cos(sw) - oy * Math.sin(sw); y = 420 + ox * Math.sin(sw) + oy * Math.cos(sw);
+    const a = (1 - land) * (.55 + .45 * p.r);
+    if (a <= 0) continue;
+    b.fillStyle = p.r > .8 ? `rgba(143,166,255,${a})` : `rgba(255,255,255,${a})`;
+    const sz = 2.2 + (1 - e) * 1.5 * p.r; b.fillRect(x - sz / 2, y - sz / 2, sz, sz);
+  }
+  b.restore();
+  if (land > 0) {
+    drawMark(b, 270, 420, 230, C.white, C.accent, land);
+    const rk = seg(t, LAND, LAND + .7);
+    if (rk > 0 && rk < 1) { b.strokeStyle = `rgba(143,166,255,${1 - rk})`; b.lineWidth = 2; b.beginPath(); b.arc(270, 420, 120 + 240 * E.outExpo(rk), 0, 7); b.stroke(); }
+  }
+  /* telop + timer */
+  const tk = E.outExpo(seg(t, 2.75, 3.1)), out = seg(t, 3.8, 3.98);
+  if (tk > 0) {
+    b.save(); b.globalAlpha = tk * (1 - out); b.textAlign = 'center';
+    b.font = font(900, 40); b.fillStyle = C.white; b.fillText('3秒で、完成。', 270, 640 + (1 - tk) * 14); b.restore();
+  }
+  b.save(); b.font = mono(600, 18); b.textAlign = 'right'; b.fillStyle = t >= 3 ? C.accentHi : C.grey; b.globalAlpha = 1 - out;
+  b.fillText('00:0' + Math.min(3, Math.floor(t)), 500, 900); b.restore();
+}
+
+function sceneSplit(t) {
+  const k = clamp(Math.floor((t - SPLIT0) / 1.5), 0, 3), s = SEGS[k], t0 = SPLIT0 + k * 1.5, u = t - t0, r = u - .5;
+  const TOP = 360, BOT = 820;
+  b.fillStyle = C.ink; b.fillRect(0, 0, LW, LH);
+  /* prompt panel */
+  b.fillStyle = '#12141b'; b.fillRect(0, 0, LW, TOP);
+  b.font = mono(500, 12); b.fillStyle = C.grey; b.fillText(`PROMPT  ${String(k + 1).padStart(2, '0')} / 04`, 40, 206);
+  const enter = CUES.enters[k + 1], fl = Math.max(0, 1 - (t - enter) / .35) * (t >= enter ? 1 : 0);
+  b.fillStyle = '#1b1e28'; b.strokeStyle = fl > 0 ? `rgba(143,166,255,${.4 + .6 * fl})` : '#2e3342'; b.lineWidth = 1.5 + fl * 1.5;
+  b.beginPath(); b.roundRect(40, 228, 460, 66, 33); b.fill(); b.stroke();
+  const n = [...s.word].length, keys = CUES.keys.filter(x => x >= t0 && x < t0 + .5).slice(0, n);
+  const typed = [...s.word].slice(0, typedCount(keys, t)).join('');
+  b.font = font(700, 26); b.textBaseline = 'middle'; b.fillStyle = C.white; b.fillText(typed, 70, 262);
+  caret(70 + b.measureText(typed).width + 3, 262, 30, t, C.accent, t < enter);
+  b.fillStyle = t >= enter ? C.accent : '#2e3342'; b.beginPath(); b.arc(466, 261, 20, 0, 7); b.fill();
+  b.strokeStyle = '#fff'; b.lineWidth = 2.4; b.lineCap = 'round'; b.beginPath(); b.moveTo(466, 270); b.lineTo(466, 252); b.moveTo(459, 259); b.lineTo(466, 252); b.lineTo(473, 259); b.stroke();
+  b.textBaseline = 'alphabetic';
+
+  /* result area */
+  b.save(); b.beginPath(); b.rect(0, TOP, LW, BOT - TOP); b.clip();
+  if (r >= 0) result(s.kind, r, TOP, BOT - TOP, t);
+  else if (k > 0) {
+    /* keep the previous result on screen, dimmed, while the next word is typed */
+    result(SEGS[k - 1].kind, 1.5 + u, TOP, BOT - TOP, t);
+    b.fillStyle = `rgba(10,11,15,${.55 + .25 * clamp(u / .5)})`; b.fillRect(0, TOP, LW, BOT - TOP);
+  } else { b.fillStyle = '#0d0e13'; b.fillRect(0, TOP, LW, BOT - TOP); }
+  b.restore();
+  /* divider flashes on enter */
+  b.fillStyle = `rgba(143,166,255,${.35 + .65 * fl})`; b.fillRect(0, TOP - 1, LW, 2);
+  if (fl > 0) { b.save(); b.globalCompositeOperation = 'lighter'; b.fillStyle = `rgba(61,99,255,${.5 * fl})`; b.fillRect(0, TOP - 14, LW, 28); b.restore(); }
+
+  /* telop band */
+  b.fillStyle = C.ink; b.fillRect(0, BOT, LW, LH - BOT);
+  const tk = E.outExpo(seg(t, enter + .05, enter + .35));
+  if (tk > 0) {
+    b.save(); b.beginPath(); b.rect(0, BOT, LW, LH - BOT); b.clip();
+    b.font = font(900, 50); const y = 906 + (1 - tk) * 40;
+    b.fillStyle = C.white; b.fillText(s.telop, 40, y);
+    b.fillStyle = C.accentHi; b.fillText('も。', 40 + b.measureText(s.telop).width, y);
+    b.restore();
+  }
+  b.font = mono(500, 12); b.fillStyle = C.grey; b.textAlign = 'right'; b.fillText(String(k + 1).padStart(2, '0') + ' / 04', 500, 848); b.textAlign = 'left';
+}
+
+function result(kind, r, y0, h, t) {
+  if (kind === 'poster') {
+    b.fillStyle = '#1b1d24'; b.fillRect(0, y0, LW, h);
+    [[-1, -9], [0, 0], [1, 9]].forEach(([q, rot], i) => {
+      const k = E.outBack(seg(r, .05 + i * .15, .4 + i * .15)); if (k <= 0) return;
+      b.save(); b.translate(270 + q * 150, y0 + h / 2 + 10 + (1 - clamp(k)) * 30); b.rotate(rot * Math.PI / 180); b.scale(Math.max(.001, k), 1);
+      b.shadowColor = 'rgba(0,0,0,.25)'; b.shadowBlur = 18 * S; b.shadowOffsetY = 8 * S;
+      b.fillStyle = '#fff'; b.fillRect(-78, -104, 156, 208); b.shadowColor = 'transparent';
+      drawWork(b, [0, 5, 10][i], -75, -101, 150, 202); b.restore();
+    });
+  } else if (kind === 'char') {
+    const k = E.outExpo(seg(r, 0, .6));
+    b.fillStyle = '#05060c'; b.fillRect(0, y0, LW, h);
+    const cy = y0 + h * .45, R = 300 * k, g = b.createRadialGradient(270, cy, 0, 270, cy, R + 1);
+    g.addColorStop(0, 'rgba(170,215,255,1)'); g.addColorStop(.25, 'rgba(79,141,255,.85)'); g.addColorStop(1, 'rgba(79,141,255,0)');
+    b.fillStyle = g; b.fillRect(0, y0, LW, h);
+    drawSil(b, 270, y0 + h + 4 + (1 - k) * 120, 400, '#8fc0ff', clamp(k * 3));
+  } else if (kind === 'sticker') {
+    b.fillStyle = '#f6f3ec'; b.fillRect(0, y0, LW, h);
+    for (let i = 0; i < 8; i++) {
+      const k = E.outBack(seg(r, .05 + i * .07, .35 + i * .07)); if (k <= 0) continue;
+      const col = i % 4, row = Math.floor(i / 4), cx = 72 + col * 132, cy = y0 + 112 + row * 222;
+      const bob = Math.sin((t - i * .1) * 9) * 3 * clamp(k);
+      b.save(); b.translate(cx, cy + bob); b.scale(k, k);
+      const [txt, c, ex] = STICKER[i]; stickerFace(b, 0, -6, 50, c, ex); stickerText(b, txt, 0, 82, 25);
+      b.restore();
+    }
+  } else if (kind === 'movie') {
+    b.fillStyle = '#07080b'; b.fillRect(0, y0, LW, h);
+    const sy = y0 + h / 2 - 110, sh = 220, speed = 520 * E.inCubic(seg(r, 0, .5)) + 160;
+    const off = ((t - (SPLIT0 + 4.5)) * speed) % 200;
+    b.fillStyle = '#111217'; b.fillRect(0, sy, LW, sh);
+    for (let i = -1; i < 5; i++) {
+      const x = i * 200 - off + 20;
+      drawWork(b, 3 + i * 5 + 20, x, sy + 36, 180, 148);
+      b.fillStyle = '#d9d4c5';
+      for (let j = 0; j < 6; j++) { b.fillRect(x + 6 + j * 30, sy + 10, 14, 14); b.fillRect(x + 6 + j * 30, sy + sh - 24, 14, 14); }
+    }
+    b.font = mono(600, 12); b.fillStyle = '#e2434b'; b.fillText('● REC', 40, y0 + 40);
+    b.fillStyle = C.grey; b.textAlign = 'right'; b.fillText('24 FPS', 500, y0 + 40); b.textAlign = 'left';
+  }
+}
+
+let textLayer;
+function scenePause(t) {
+  b.fillStyle = C.ink; b.fillRect(0, 0, LW, LH);
+  const lines = ['思いついたら、', 'もう形にできる。'];
+  if (!textLayer || textLayer.width !== tmp.width) { textLayer = document.createElement('canvas'); }
+  textLayer.width = tmp.width; textLayer.height = tmp.height;
+  const g = textLayer.getContext('2d'); g.setTransform(S, 0, 0, S, 0, 0);
+  const z = 1 + .06 * E.inOutCubic(seg(t, PAUSE0, MONT0));
+  g.translate(270, 480); g.scale(z, z); g.translate(-270, -480);
+  g.font = font(900, 42); g.textAlign = 'center';
+  lines.forEach((l, i) => {
+    const k = E.outExpo(seg(t, PAUSE0 + .15 + i * .3, PAUSE0 + .8 + i * .3));
+    g.globalAlpha = k * .9; g.fillStyle = '#fff'; g.fillText(l, 270, 462 + i * 62 + (1 - k) * 16);
+  });
+  /* light band sweeps across the letters */
+  const sk = seg(t, 11.0, 13.0);
+  if (sk > 0 && sk < 1) {
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-atop';
+    const x = lerp(-120, 660, E.inOutCubic(sk)), lg = g.createLinearGradient(x - 90, 0, x + 90, 0);
+    lg.addColorStop(0, 'rgba(143,166,255,0)'); lg.addColorStop(.5, 'rgba(210,222,255,1)'); lg.addColorStop(1, 'rgba(143,166,255,0)');
+    g.fillStyle = lg; g.fillRect(-200, 0, 1000, LH);
+    g.globalCompositeOperation = 'source-over';
+  }
+  const fade = 1 - seg(t, 13.6, 13.95);
+  b.save(); b.setTransform(1, 0, 0, 1, 0, 0); b.globalAlpha = fade; b.drawImage(textLayer, 0, 0); b.restore();
+  b.font = font(900, 42); const w2 = b.measureText(lines[1]).width;
+  if (t > PAUSE0 + 1.1) { b.globalAlpha = fade; caret(270 + w2 / 2 * z + 6, 524, 44, t, C.accent); b.globalAlpha = 1; }
+}
+
+function currentCut(t) { let c = CUES.cuts[0]; for (const x of CUES.cuts) if (x.t <= t + 1e-6) c = x; return c; }
+function sceneMontage(t) {
+  b.fillStyle = C.ink; b.fillRect(0, 0, LW, LH);
+  const c = currentCut(t), u = t - c.t, idx = c.w;
+  const pop = 1 + .04 * Math.max(0, 1 - u / .12), X = 50, Y = 196, W = 440, H = 587;
+  b.save(); b.translate(270, Y + H / 2); b.scale(pop, pop); b.translate(-270, -(Y + H / 2));
+  drawWork(b, idx, X, Y, W, H); b.restore();
+  b.font = mono(600, 14); b.fillStyle = C.white; b.fillText(WORKS[idx % WORKS.length].kind, 50, 160);
+  b.fillStyle = C.grey; b.textAlign = 'right'; b.fillText('WORK ' + String(idx + 1).padStart(3, '0'), 490, 160); b.textAlign = 'left';
+  /* progress ticks along the bottom speed up with the cuts */
+  const n = CUES.cuts.indexOf(c) + 1, total = CUES.cuts.length;
+  b.fillStyle = C.accent; b.fillRect(50, 826, 440 * n / total, 3); b.fillStyle = '#23262f'; b.fillRect(50 + 440 * n / total, 826, 440 * (1 - n / total), 3);
+  if (u < 1 / FPS && c.d >= .25) { b.fillStyle = 'rgba(255,255,255,.18)'; b.fillRect(0, 0, LW, LH); }
+}
+
+function sceneMosaic(t) {
+  b.fillStyle = C.ink; b.fillRect(0, 0, LW, LH);
+  const spread = seg(t, HIT2, HIT2 + .55), carve = E.inOutCubic(seg(t, HIT2 + .6, HIT2 + 1.3));
+  const solid = E.inOutExpo(seg(t, HIT2 + 1.4, LOGO0 + .1));
+  /* the last work shrinks into the centre tile */
+  const sk = E.outExpo(seg(t, HIT2, HIT2 + .35));
+  if (sk < 1) {
+    const w = lerp(440, TILE, sk), h = lerp(587, TILE * 4 / 3, sk);
+    b.save(); b.globalAlpha = 1 - sk * .5; drawWork(b, CUES.cuts[CUES.cuts.length - 1].w, 270 - w / 2, 480 - h / 2, w, h); b.restore();
+  }
+  const zoom = lerp(1, 230 / 520, solid), cy = lerp(470, 420, solid);
+  b.save(); b.translate(270, cy); b.scale(zoom, zoom); b.translate(-270, -470);
+  for (let r = 0; r < ROWS; r++) for (let q = 0; q < COLS; q++) {
+    const i = r * COLS + q, x = q * TILE, y = r * TILE;
+    const d = Math.hypot(x + TILE / 2 - 270, y + TILE / 2 - 470) / 560;
+    const appear = E.outExpo(clamp((spread - d * .8) / .2)); if (appear <= 0) continue;
+    const inside = tileMask[i];
+    const a = appear * (inside ? 1 : lerp(1, .07, carve)) * (1 - solid);
+    if (a <= .01) continue;
+    const sc = inside ? 1 : lerp(1, .6, carve);
+    b.globalAlpha = a; const pad = (1 - sc) * TILE / 2;
+    b.drawImage(thumbs[Math.floor(hash(i * 3.3) * thumbs.length)], x + 1 + pad, y + 1 + pad, (TILE - 2) * sc, (TILE - 2) * sc);
+  }
+  b.globalAlpha = 1; b.restore();
+  if (solid > 0) drawMark(b, 270, 420, 230, C.white, C.accent, solid);
+}
+
+function sceneLogo(t) {
+  b.fillStyle = C.ink; b.fillRect(0, 0, LW, LH);
+  /* backlight behind the mark */
+  const g = b.createRadialGradient(270, 420, 0, 270, 420, 320); g.addColorStop(0, 'rgba(61,99,255,.28)'); g.addColorStop(1, 'rgba(61,99,255,0)');
+  b.fillStyle = g; b.fillRect(0, 0, LW, LH);
+  drawDust(t);
+  drawMark(b, 270, 420, 230);
+  const wk = E.outExpo(seg(t, LOGO0, LOGO0 + .6));
+  drawWordmark(b, 270, 600 + (1 - wk) * 12, 1, wk);
+  const tk = E.outExpo(seg(t, LOGO0 + .35, LOGO0 + 1));
+  b.save(); b.globalAlpha = tk; b.font = font(900, 32); b.textAlign = 'center'; b.fillStyle = C.white; b.fillText(BRAND.tag, 270, 712 + (1 - tk) * 12); b.restore();
+  if (t < BTN0) caret(268, 772, 30, t, C.accent);
+  if (t >= BTN0) {
+    const keys = CUES.keys.filter(x => x >= BTN0), n = typedCount(keys, t), s = [...BRAND.handle].slice(0, n).join('');
+    b.font = mono(600, 24); b.textAlign = 'left'; const full = b.measureText(BRAND.handle).width, x0 = 270 - full / 2;
+    b.fillStyle = C.accentHi; b.fillText(s, x0, 790);
+    caret(x0 + b.measureText(s).width + 3, 782, 28, t, C.accent, t < keys[keys.length - 1] + .2);
+    const dk = E.outExpo(seg(t, 28.95, 29.35));
+    b.save(); b.globalAlpha = dk; b.font = font(700, 20); b.textAlign = 'center'; b.fillStyle = C.grey; b.fillText(BRAND.dm, 270, 834); b.restore();
+  }
+}
+const DUST = Array.from({ length: 70 }, (_, i) => ({ x: hash(i) * LW, y: hash(i + 300) * LH, z: .2 + hash(i + 600) * .8 }));
+function drawDust(t) {
+  for (const p of DUST) {
+    const y = ((p.y - t * 12 * p.z) % LH + LH) % LH;
+    b.fillStyle = `rgba(180,195,255,${.12 + .4 * p.z})`; b.beginPath(); b.arc(p.x, y, .5 + p.z * 1.3, 0, 7); b.fill();
+  }
+}
+
+/* ================= frame ================= */
+function renderScene(t) {
+  const f = frameOf(t);
+  /* camera: keystroke nudges and hit shakes */
+  let push = 0; for (const k of CUES.keys) if (k <= t && t - k < .2 && k < 1) push = Math.max(push, .012 * Math.exp(-(t - k) * 20));
+  let shake = 0; for (const h of CUES.hits) if (t >= h && t < h + .35) shake = (1 - (t - h) / .35) * 6;
+  const zoom = 1 + push, sx = (hash(f) - .5) * 2 * shake, sy = (hash(f + 7) - .5) * 2 * shake;
+  b.setTransform(1, 0, 0, 1, 0, 0); b.globalAlpha = 1; b.globalCompositeOperation = 'source-over'; b.textAlign = 'left'; b.textBaseline = 'alphabetic';
+  b.setTransform(S * zoom, 0, 0, S * zoom, (buf.width - buf.width * zoom) / 2 + sx * S, (buf.height - buf.height * zoom) / 2 + sy * S);
+  if (t < HIT1) sceneHook(t);
+  else if (t < SPLIT0) sceneBurst(t);
+  else if (t < PAUSE0) sceneSplit(t);
+  else if (t < MONT0) scenePause(t);
+  else if (t < HIT2) sceneMontage(t);
+  else if (t < LOGO0) sceneMosaic(t);
+  else if (t < ENTER_END) sceneLogo(t);
+  else { b.fillStyle = '#000'; b.fillRect(0, 0, LW, LH); }
+}
+function compose(t) {
+  const W = cv.width, H = cv.height, f = frameOf(t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  ctx.drawImage(buf, 0, 0);
+  const dark = t >= HIT1 && t < ENTER_END;
+  const bloom = t >= SPLIT0 && t < PAUSE0 ? .12 : t >= MONT0 && t < HIT2 ? .16 : .4;
+  if (HAS_FILTER && dark) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = bloom; ctx.filter = `blur(${12 * S}px)`; ctx.drawImage(buf, 0, 0); ctx.restore(); ctx.filter = 'none'; }
+  /* hit flashes */
+  const fl = Math.max(t >= HIT1 ? Math.pow(1 - seg(t, HIT1, HIT1 + .25), 2) * .8 : 0, t >= HIT2 ? Math.pow(1 - seg(t, HIT2, HIT2 + .5), 2) * .9 : 0);
+  if (fl > 0) { ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(200,212,255,${fl})`; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; }
+  if (t < ENTER_END) {
+    ctx.globalAlpha = dark ? 1 : .25; ctx.drawImage(vignette, 0, 0); ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .07; ctx.fillStyle = ctx.createPattern(grains[f % 4], 'repeat'); ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  }
+}
+let T = 0;
+function render(t) { T = t; if (!cv.width || !PTS.length || !grains.length) return; renderScene(t); compose(t); updateUi(); }
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const MARKS = [[0, 'つかみ', '白い画面に「ロゴ、つくって。」'], [HIT1, '衝撃 1', 'Enterで文字が弾けてロゴになる'], [SPLIT0, '積み上げ', '入力と作品を上下に並べて4つ'], [PAUSE0, '静止', '1文だけ、光が横切る'], [MONT0, '最大', '作品の連打、だんだん速く'], [HIT2, '衝撃 2', '作品のタイルがロゴを組む'], [LOGO0, 'ロゴ', 'ロゴとキャッチコピー'], [BTN0, '締め', '連絡先を打って、Enterで暗転']];
+$('scenes').innerHTML = MARKS.map(([t, n, d], i) => `<li data-i="${i}"><button data-t="${t}"><span class="t">${t.toFixed(1)}s</span><span><b>${n}</b><span class="d">${d}</span></span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} s · F${String(frameOf(T)).padStart(3, '0')}</small>`;
+  let on = 0; MARKS.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#scenes li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 一時停止' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '🔊 音あり' : '🔇 音なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#scenes button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + .02); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() { buildSil(); buildParticles(); buildMask(); buildThumbs(); }
+new ResizeObserver(resize).observe(cv);
+Promise.all([font(900, 46), font(700, 26), mono(600, 14), mono(500, 12)].map(f => document.fonts.load(f, 'aあ字'))).catch(() => {}).then(() => {
+  build(); resize(); render(25.5); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

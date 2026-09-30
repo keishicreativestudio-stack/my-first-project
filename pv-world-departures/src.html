@@ -1,0 +1,371 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 出発案内板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<style>
+/* Layout: the 9:16 player beside a departures table, airport black and signal yellow; stacks on phones. */
+:root {
+  --bg: #111214;
+  --panel: #1b1c1f;
+  --line: #2c2e33;
+  --ink: #f2f2ee;
+  --muted: #9a9ca3;
+  --amber: #ffcc33;
+  --green: #5fdc8a;
+  --jp: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+  --disp: "Anton", "Zen Kaku Gothic New", sans-serif;
+  color-scheme: dark;
+}
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--jp); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.7; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font: 400 13px var(--disp); letter-spacing: .25em; color: var(--amber); }
+h1 { font: 400 48px/1.05 var(--disp); margin: 6px 0; letter-spacing: .02em; }
+h1 small { display: block; font: 900 18px var(--jp); color: var(--muted); letter-spacing: .1em; margin-top: 6px; }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 44ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 700 13px var(--jp); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 7px 16px; cursor: pointer; }
+button:hover { border-color: var(--amber); }
+button.primary { background: var(--amber); border-color: var(--amber); color: #111; min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.tc { font: 400 15px var(--disp); letter-spacing: .05em; font-variant-numeric: tabular-nums; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--amber); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+table.dep { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 6px; overflow: hidden; font-size: 13px; }
+table.dep th { font: 400 12px var(--disp); letter-spacing: .15em; color: var(--amber); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+table.dep td { padding: 0; border-bottom: 1px solid var(--line); }
+table.dep button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 56px 1fr 44px; gap: 8px; padding: 6px 10px; cursor: pointer; }
+table.dep button:focus-visible { outline: 2px solid var(--amber); }
+table.dep .t { font: 400 14px var(--disp); color: var(--muted); }
+table.dep .g { font: 400 14px var(--disp); color: var(--muted); text-align: right; }
+table.dep tr.on td { background: #26282c; }
+table.dep tr.on .t, table.dep tr.on .g { color: var(--amber); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 出発案内板"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AI CHALLENGE 365 · 30 SEC · 120 BPM</div>
+      <h1>DEPARTURES<small>出発案内板</small></h1>
+      <p class="lede">空港の出発案内板がパタパタとめくれるたびに、次の街へ。写真も案内板と同じようにタイルがめくれて切り替わります。音楽は空港ラウンジのボサノバ。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <table class="dep"><thead><tr><th>TIME · DESTINATION · GATE</th></tr></thead><tbody id="dep"></tbody></table>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 120, BEAT = 60 / BPM;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const sm = k => k * k * (3 - 2 * k);
+const outC = k => 1 - Math.pow(1 - k, 3);
+const outB = k => { const c = 1.6; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const disp = px => `400 ${px}px "Anton", "Zen Kaku Gothic New", sans-serif`;
+const jp = (w, px) => `${w} ${px}px "Zen Kaku Gothic New", "Hiragino Sans", sans-serif`;
+const AMBER = '#ffcc33', GREEN = '#5fdc8a';
+
+/* ================= flights ================= */
+const CITIES = [
+  ['paris', 'PARIS', 'パリ', 'フランス', [.31, .72], 2, 4],
+  ['london', 'LONDON', 'ロンドン', 'イギリス', [.44, .77], 4, 6],
+  ['venice', 'VENICE', 'ヴェネツィア', 'イタリア', [.45, .8], 6, 8],
+  ['santorini', 'SANTORINI', 'サントリーニ', 'ギリシャ', [.41, .73], 8, 10],
+  ['cairo', 'GIZA', 'ギザ', 'エジプト', [.36, .83], 10, 12],
+  ['dubai', 'DUBAI', 'ドバイ', 'アラブ首長国連邦', [.38, .8], 12, 14],
+  ['cappadocia', 'CAPPADOCIA', 'カッパドキア', 'トルコ', [.36, .77], 14, 16],
+  ['kyoto', 'KYOTO', '京都', '日本', [.39, .76], 16, 18],
+  ['hongkong', 'HONG KONG', '香港', '中国', [.41, .82], 18, 19],
+  ['newyork', 'NEW YORK', 'ニューヨーク', 'アメリカ', [.41, .83], 19, 20],
+  ['machupicchu', 'MACHU PICCHU', 'マチュピチュ', 'ペルー', [.41, .82], 20, 21],
+  ['iceland', 'ICELAND', 'アイスランド', 'アイスランド', [.41, .8], 21, 24],
+].map(([key, en, ja, co, an, a, b], i) => ({ key, en, ja, co, an, t: a, e: b, i, time: clock(6 * 60 + 5 + i * 25), gate: 'G' + String(i + 1).padStart(2, '0') }));
+function clock(m) { return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; }
+const EARTH = 24, LOGO = 27, CTA_T = 28.4;
+const COLS = 31;
+const rowText = (c, status) => c ? `${c.time} ${c.en.padEnd(12)} ${c.gate} ${status.padEnd(8)}` : ' '.repeat(COLS);
+/* the board shows the flight now boarding and the one after it */
+const BOARD = [
+  { t: .25, rows: [`06:00 ${'DEPARTURES'.padEnd(12)} AI  365     `, rowText(CITIES[0], 'ON TIME')] },
+  ...CITIES.map((c, i) => ({ t: c.t - .02, rows: [rowText(c, 'BOARDING'), rowText(CITIES[i + 1], i < 11 ? 'ON TIME' : '')] })),
+  { t: EARTH, rows: [`??:?? ${'NEXT'.padEnd(12)} G?? YOU     `, `      ${'YOU DECIDE'.padEnd(12)}             `] },
+];
+const MOSAIC = [CITIES[0].t, ...CITIES.slice(1).map(c => c.t), EARTH];
+const CUES = { bpm: BPM, end: DUR, board: BOARD.map(b => b.t), mosaic: MOSAIC, earth: EARTH, logo: LOGO, cta: CTA_T, fast: [18, 19, 20, 21] };
+window.CUES = CUES;
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+function placeImg(g, im, ax, ay, z, px = 270, py = 735) {
+  const c = Math.max(LW / im.width, LH / im.height) * z, w = im.width * c, h = im.height * c;
+  g.drawImage(im, clamp(px - ax * w, LW - w, 0), clamp(py - ay * h, LH - h, 0), w, h);
+}
+
+/* ================= scenes (drawn full frame, then mixed by the flap mosaic) ================= */
+function sceneAt(g, idx, t) {
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  if (idx < 0) {       /* before the first flight: the window */
+    if (IM.window) placeImg(g, IM.window, .5, .5, lerp(1.04, 1.1, seg(t, 0, 2)), 270, 480);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, LW, LH);
+    return;
+  }
+  if (idx >= CITIES.length) {
+    if (IM.earth) placeImg(g, IM.earth, .5, .62, lerp(1.25, 1.02, outC(seg(t, EARTH, DUR))), 270, 600);
+    return;
+  }
+  const c = CITIES[idx], k = seg(t, c.t, c.e + .5);
+  placeImg(g, IM[c.key], c.an[0], c.an[1], lerp(1.12, 1.22, k));
+}
+const idxAt = t => t >= EARTH ? CITIES.length : CITIES.reduce((a, c, i) => t >= c.t ? i : a, -1);
+
+/* the flap mosaic: every tile folds down like a board flap, in a diagonal wave */
+const MC = 6, MR = 8, TW = LW / MC, TH = LH / MR, TILE = .2, STEP = .026;
+function mosaic(g, A, Bc, t, t0) {
+  const scale = A.width / LW;
+  for (let r = 0; r < MR; r++) for (let c = 0; c < MC; c++) {
+    const x = c * TW, y = r * TH, s = t0 + (c + r) * STEP + hash(r * 7 + c) * .03, p = seg(t, s, s + TILE);
+    const src = (C, sx, sy, sw, sh, dx, dy, dw, dh) => { if (dh > .3) g.drawImage(C, sx * scale, sy * scale, sw * scale, sh * scale, dx, dy, dw, dh); };
+    if (p >= 1) { src(Bc, x, y, TW, TH, x, y, TW, TH); continue; }
+    if (p <= 0) { src(A, x, y, TW, TH, x, y, TW, TH); continue; }
+    const mid = y + TH / 2;
+    src(Bc, x, y, TW, TH / 2, x, y, TW, TH / 2);            // new top behind
+    src(A, x, mid, TW, TH / 2, x, mid, TW, TH / 2);          // old bottom behind
+    if (p < .5) {
+      const h = TH / 2 * Math.cos(p * Math.PI);
+      src(A, x, y, TW, TH / 2, x, mid - h, TW, h);          // old top folding down
+      g.fillStyle = `rgba(0,0,0,${.5 * p * 2})`; g.fillRect(x, mid - h, TW, h);
+    } else {
+      const h = TH / 2 * -Math.cos(p * Math.PI);
+      src(Bc, x, mid, TW, TH / 2, x, mid, TW, h);           // new bottom unfolding
+      g.fillStyle = `rgba(0,0,0,${.5 * (1 - p) * 2})`; g.fillRect(x, mid, TW, h);
+    }
+    g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(x, mid - .75, TW, 1.5);
+    g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 1; g.strokeRect(x + .5, y + .5, TW - 1, TH - 1);
+  }
+}
+
+/* ================= split-flap letters ================= */
+const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+function drawHalf(g, ch, col, x, y, w, h, half, font) {
+  g.save(); g.beginPath();
+  if (half === 'top') g.rect(x, y, w, h / 2); else if (half === 'bottom') g.rect(x, y + h / 2, w, h / 2); else g.rect(x, y, w, h);
+  g.clip();
+  const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, '#2a2b2f'); gr.addColorStop(.5, '#1d1e21'); gr.addColorStop(.5, '#17181a'); gr.addColorStop(1, '#222326');
+  g.fillStyle = gr; g.beginPath(); g.roundRect(x, y, w, h, 2); g.fill();
+  if (ch !== ' ') { g.fillStyle = col; g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, x + w / 2, y + h / 2 + h * .04); }
+  g.restore();
+}
+function flapTile(g, from, to, col, x, y, w, h, p, font) {
+  if (p >= 1 || from === to) { drawHalf(g, to, col, x, y, w, h, 'full', font); }
+  else {
+    drawHalf(g, to, col, x, y, w, h, 'top', font);
+    drawHalf(g, from, col, x, y, w, h, 'bottom', font);
+    const mid = y + h / 2;
+    if (p < .5) { const k = Math.cos(p * Math.PI); g.save(); g.translate(0, mid); g.scale(1, k); g.translate(0, -mid); drawHalf(g, from, col, x, y, w, h, 'top', font); g.restore(); }
+    else { const k = -Math.cos(p * Math.PI); g.save(); g.translate(0, mid); g.scale(1, k); g.translate(0, -mid); drawHalf(g, to, col, x, y, w, h, 'bottom', font); g.restore(); }
+  }
+  g.fillStyle = 'rgba(0,0,0,.85)'; g.fillRect(x, y + h / 2 - .6, w, 1.2);
+}
+/* a tile that spins through a few random characters before landing, starting at s */
+function spinTile(g, prev, target, seed, s, x, y, w, h, col, font, t, set = CHARSET) {
+  if (prev === target || t < s) { flapTile(g, prev, prev, col, x, y, w, h, 1, font); return; }
+  const n = 1 + Math.floor(hash(seed) * 3), dt = .065;
+  const chain = [prev]; for (let k = 0; k < n; k++) chain.push(set[Math.floor(hash(seed * 3.3 + k) * set.length)]); chain.push(target);
+  const f = (t - s) / dt, k = Math.min(Math.floor(f), chain.length - 2);
+  flapTile(g, chain[k], chain[k + 1], col, x, y, w, h, f >= chain.length - 1 ? 1 : f - k, font);
+}
+function board(g, t) {
+  const panelA = 1 - seg(t, LOGO - .3, LOGO);
+  if (panelA <= 0) return;
+  g.save(); g.globalAlpha = panelA;
+  g.fillStyle = 'rgba(8,8,10,.9)'; g.fillRect(0, 0, LW, 150);
+  g.fillStyle = AMBER; g.fillRect(0, 150, LW, 2);
+  g.font = disp(15); g.fillStyle = AMBER; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText('DEPARTURES', 14, 24);
+  g.font = jp(900, 13); g.fillText('出発', 104, 25);
+  g.font = disp(15); g.textAlign = 'right'; g.fillStyle = '#e8e8e8';
+  const ci = Math.min(idxAt(t), CITIES.length - 1), mins = ci < 0 ? 6 * 60 + Math.floor(t * 2) : 6 * 60 + 5 + ci * 25 - 4 + Math.floor((t - CITIES[ci].t) * 1.5); g.fillText(clock(mins), LW - 14, 24);
+  g.font = disp(10); g.fillStyle = '#8a8c92'; g.textAlign = 'left';
+  ['TIME', 'DESTINATION', 'GATE', 'STATUS'].forEach((h, i) => g.fillText(h, 14 + [0, 6, 19, 23][i] * 16.5, 45));
+  let cur = 0; BOARD.forEach((b, i) => { if (t >= b.t) cur = i; });
+  const font = disp(18);
+  for (let r = 0; r < 2; r++) {
+    const now = t >= BOARD[0].t ? BOARD[cur].rows[r] : ' '.repeat(COLS), prev = cur > 0 ? BOARD[cur - 1].rows[r] : ' '.repeat(COLS), s0 = BOARD[cur].t;
+    const y = 58 + r * 44;
+    for (let c = 0; c < COLS; c++) {
+      const col = c >= 23 && r === 0 ? (now.slice(23).trim() === 'BOARDING' ? GREEN : '#f2f2ee') : c < 5 ? AMBER : '#f2f2ee';
+      const blink = r === 0 && c >= 23 && now.slice(23).trim() === 'BOARDING' ? (Math.floor(t * 2.4) % 2 ? .55 : 1) : 1;
+      g.save(); g.globalAlpha = panelA * blink;
+      spinTile(g, t >= BOARD[0].t ? prev[c] : ' ', now[c], cur * 97 + r * 31 + c, s0 + c * .012 + hash(c + r * 40) * .06, 14 + c * 16.5, y, 15, 34, col, font, t);
+      g.restore();
+    }
+  }
+  g.restore();
+}
+
+/* ================= words ================= */
+function shadowText(g, text, x, y, font, fill = '#fff', align = 'center') {
+  g.save(); g.font = font; g.textAlign = align; g.textBaseline = 'middle'; g.shadowColor = 'rgba(0,0,0,.65)'; g.shadowBlur = 16; g.shadowOffsetY = 3; g.fillStyle = fill; g.fillText(text, x, y); g.restore();
+}
+function pop(g, text, x, y, font, t0, t, fill = '#fff') {
+  const k = seg(t, t0, t0 + .3); if (k <= 0) return;
+  g.save(); g.globalAlpha = clamp(k * 3); g.translate(x, y); const s = lerp(1.25, 1, outB(k)); g.scale(s, s); shadowText(g, text, 0, 0, font, fill); g.restore();
+}
+function subtitle(g, t) {
+  const i = idxAt(t); if (i < 0 || i >= CITIES.length) return;
+  const c = CITIES[i], k = outC(seg(t, c.t + .15, c.t + .45)), out = 1 - seg(t, c.e - .1, c.e);
+  if (k <= 0 || out <= 0) return;
+  g.save(); g.globalAlpha = k * out;
+  g.font = jp(900, 22); const w1 = g.measureText(c.ja).width; g.font = jp(700, 15); const w2 = g.measureText(c.co).width, gap = 22, x0 = 270 - (w1 + gap + w2) / 2;
+  const bg = g.createLinearGradient(0, 152, 0, 215); bg.addColorStop(0, 'rgba(0,0,0,.45)'); bg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = bg; g.fillRect(0, 152, LW, 63);
+  shadowText(g, c.ja, x0, 180, jp(900, 22), '#fff', 'left');
+  shadowText(g, c.co, x0 + w1 + gap, 181, jp(700, 15), 'rgba(255,255,255,.85)', 'left');
+  g.fillStyle = AMBER; g.beginPath(); g.arc(x0 + w1 + gap / 2, 181, 3, 0, 7); g.fill();
+  g.restore();
+}
+function logo(g, t) {
+  g.fillStyle = `rgba(0,0,0,${.45 * sm(seg(t, LOGO, LOGO + .5))})`; g.fillRect(0, 0, LW, LH);
+  /* the name lands on flap tiles */
+  const name = [...'AIチャレンジ365'], w = 42, h = 64, gap = 4, x0 = 270 - (name.length * (w + gap) - gap) / 2;
+  const set = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  name.forEach((ch, i) => {
+    const s = LOGO + .1 + i * .07, font = /[A-Z0-9]/.test(ch) ? disp(40) : jp(900, 34);
+    if (t < s) { flapTile(g, ' ', ' ', '#fff', x0 + i * (w + gap), 250, w, h, 1, font); return; }
+    spinTile(g, ' ', ch, 500 + i, s, x0 + i * (w + gap), 250, w, h, i < 2 ? AMBER : '#fff', font, t, set);
+  });
+  const k2 = seg(t, LOGO + 1.1, LOGO + 1.5);
+  g.save(); g.globalAlpha = k2; shadowText(g, 'NOW BOARDING  ·  AI CHALLENGE 365', 270, 345, disp(15), 'rgba(255,255,255,.85)'); g.restore();
+  const ck = seg(t, CTA_T, CTA_T + .35);
+  if (ck > 0) {
+    const s2 = lerp(1.25, 1, outB(ck));
+    g.save(); g.translate(270, 420); g.scale(s2, s2); g.globalAlpha = clamp(ck * 3);
+    g.fillStyle = AMBER; g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 14; g.beginPath(); g.roundRect(-170, -29, 340, 58, 6); g.fill(); g.shadowBlur = 0;
+    g.fillStyle = '#111'; g.font = jp(900, 22); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('プロフィールのリンクから', 0, 1);
+    g.restore();
+  }
+}
+function overlays(g, t) {
+  if (t < 2) {
+    pop(g, '次の便は、', 270, 440, jp(900, 40), .35, t);
+    pop(g, 'どこへ？', 270, 505, jp(900, 56), .85, t, AMBER);
+  }
+  subtitle(g, t);
+  if (t >= EARTH && t < LOGO) {
+    const o = 1 - seg(t, LOGO - .3, LOGO);
+    g.save(); g.globalAlpha = o;
+    pop(g, '次の行き先は、', 270, 300, jp(900, 38), EARTH + .5, t);
+    pop(g, 'あなたが決める。', 270, 365, jp(900, 50), EARTH + 1.3, t, AMBER);
+    g.restore();
+  }
+  if (t >= LOGO) logo(g, t);
+  board(g, t);
+}
+
+/* ================= frame ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const bufA = document.createElement('canvas'), bufB = document.createElement('canvas'), gA = bufA.getContext('2d'), gB = bufB.getContext('2d');
+let S = 1;
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  for (const c of [cv, bufA, bufB]) { c.width = w; c.height = Math.round(w * 16 / 9); }
+  S = w / LW;
+  render(T);
+}
+function scene(t) {
+  const g = ctx; g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1;
+  const m = MOSAIC.filter(x => t >= x - 1e-6).pop(), span = (MC + MR) * STEP + .03 + TILE;
+  if (m !== undefined && t < m + span) {
+    gA.setTransform(S, 0, 0, S, 0, 0); gB.setTransform(S, 0, 0, S, 0, 0);
+    sceneAt(gA, idxAt(m - 1e-3), t); sceneAt(gB, idxAt(m + 1e-3), t);
+    g.setTransform(1, 0, 0, 1, 0, 0); g.save(); g.scale(1, 1);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.save(); g.scale(S, S); mosaic(g, bufA, bufB, t, m); g.restore();
+    g.restore();
+    g.setTransform(S, 0, 0, S, 0, 0);
+  } else sceneAt(g, idxAt(t), t);
+  overlays(g, t);
+}
+let T = 0;
+function render(t) {
+  T = t; if (!cv.width || !IM.paris) return;
+  scene(t);
+  const W = cv.width, H = cv.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.4)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  const bl = Math.max(1 - seg(t, 0, .3), seg(t, DUR - .4, DUR)); if (bl > 0) { ctx.fillStyle = `rgba(0,0,0,${bl})`; ctx.fillRect(0, 0, W, H); }
+  updateUi();
+}
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const LIST = [...CITIES.map(c => [c.t, c.time, c.ja, c.gate]), [EARTH, '??:??', '次の行き先', 'G??']];
+$('dep').innerHTML = LIST.map(([t, tm, d, gt]) => `<tr><td><button data-t="${t}"><span class="t">${tm}</span><span>${d}</span><span class="g">${gt}</span></button></td></tr>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = -1; LIST.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#dep tr').forEach((tr, i) => tr.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#dep button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + .8); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), document.fonts.load(disp(18), 'PARIS06:05'), document.fonts.load(jp(900, 40), '次の便は、どこへ？AIチャレンジ365')]).catch(() => {}).then(() => {
+  resize(); render(5); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

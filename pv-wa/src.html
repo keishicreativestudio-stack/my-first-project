@@ -1,4 +1,5 @@
-<title>AI challenge365 PV 和</title>
+<meta charset="utf-8">
+<title>AIチャレンジ365 PV 和</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Shippori+Mincho+B1:wght@600;800&display=swap">
 <style>
@@ -383,9 +384,9 @@ function sceneSentence(t) {
   /* the hanging line and small latin credit, rotated */
   b.fillStyle = 'rgba(29,27,25,.5)'; b.fillRect(330, COLY, 1, 640 * E.inOutCubic(seg(t, T0.sentence + .3, T0.sentence + 1.8)));
   b.save(); b.translate(120, 600); b.rotate(-Math.PI / 2); b.globalAlpha = E.outCubic(seg(t, T0.sentence + 1.2, T0.sentence + 2));
-  b.font = min(600, 13); b.fillStyle = W.sumi2; b.fillText('A I   C H A L L E N G E   3 6 5', 0, 0); b.restore();
+  b.font = min(600, 13); b.fillStyle = W.sumi2; b.fillText('AIチャレンジ365', 0, 0); b.restore();
   b.font = min(600, 18); b.fillStyle = W.sumi; b.globalAlpha = E.outCubic(seg(t, T0.sentence + 1.6, T0.sentence + 2.4));
-  vtext(b, '愛の挑戦365', 170, 380, 18); b.globalAlpha = 1;
+  b.globalAlpha = 1;
   const sk = seg(t, CUES.stamp, CUES.stamp + .25);
   if (sk > 0) seal(b, 420, 780, 62, '創', 1, lerp(1.35, 1, E.outBack(sk)));
 }
@@ -506,8 +507,8 @@ function sceneLogo(t) {
   b.save(); b.globalAlpha = kk; b.fillStyle = W.sumi; b.font = brush(96); b.textAlign = 'center'; b.textBaseline = 'middle'; b.fillText('言', cx, cy + 4); b.restore();
   const wk = E.outCubic(seg(u, 1.5, 2.3));
   b.save(); b.globalAlpha = wk; b.textAlign = 'center'; b.fillStyle = W.sumi;
-  b.font = min(800, 40); b.fillText('愛の挑戦365', cx, 580 + (1 - wk) * 8);
-  b.font = min(600, 12); b.fillStyle = W.sumi2; b.fillText('A I   C H A L L E N G E   3 6 5', cx, 608); b.restore();
+  b.font = min(800, 38); b.fillText('AIチャレンジ365', cx, 584 + (1 - wk) * 8);
+  b.restore();
   const sk = seg(t, CUES.seal, CUES.seal + .22);
   if (sk > 0) seal(b, 372, 470, 44, '創', 1, lerp(1.4, 1, E.outBack(sk)));
   b.fillStyle = W.sumi; b.font = brush(24);
@@ -516,7 +517,7 @@ function sceneLogo(t) {
   const c1 = E.outCubic(seg(t, T0.contact + .1, T0.contact + .8)), c2 = E.outCubic(seg(t, T0.contact + .4, T0.contact + 1.1));
   b.save(); b.textAlign = 'center';
   b.globalAlpha = c1; b.font = min(800, 20); b.fillStyle = W.sumi; b.fillText('ご相談は、DMにて。', cx, 720 + (1 - c1) * 8);
-  b.globalAlpha = c2; b.font = min(600, 18); b.fillStyle = W.shu; b.fillText('AIチャレンジ365', cx, 758 + (1 - c2) * 8);
+  b.globalAlpha = c2;
   b.restore();
   const fade = E.inOutCubic(seg(t, T0.fade, DUR));
   if (fade > 0) { b.fillStyle = `rgba(246,241,231,${fade})`; b.fillRect(0, 0, LW, LH); }

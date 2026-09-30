@@ -1,4 +1,5 @@
-<title>AI challenge365 PV Editorial</title>
+<meta charset="utf-8">
+<title>AIチャレンジ365 PV Editorial</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Cormorant+Garamond:ital,wght@1,400;1,500;1,600&family=DM+Mono:wght@400;500&display=swap">
 <style>
@@ -49,7 +50,7 @@ ol.toc li.on .n, ol.toc li.on b { color: var(--apricot); }
   <div class="screen"><canvas id="cv" aria-label="プロモーション映像の試作（おしゃれ版）"></canvas></div>
   <div class="side">
     <div>
-      <div class="kicker">AI challenge365 · Vol.01</div>
+      <div class="kicker">AIチャレンジ365 · Vol.01</div>
       <h1>Words, into form.</h1>
       <p class="lede">「言葉を、かたちに。」を雑誌の1ページのように組み直した30秒版。テンポ90のLo-fiに合わせて動きます。作品はすべて仮です。</p>
     </div>
@@ -295,7 +296,7 @@ function drawWork(g, kind, seed, x, y, w, h, zoom = 1, px = 0) {
 const COLX = 430, COLY = 150, COLSZ = 50, SENT = '言葉を、かたちに。';
 function captions(t, col, alpha = 1) {
   b.save(); b.globalAlpha = alpha; b.fillStyle = col; b.font = mono(400, 10);
-  spaced(b, 'VOL.01', 32, 44, 2.5); b.textAlign = 'right'; b.fillText('AI CHALLENGE365', 508, 44);
+  spaced(b, 'VOL.01', 32, 44, 2.5); b.textAlign = 'right'; b.font = jp(600, 11); b.fillText('AIチャレンジ365', 508, 44); b.font = mono(400, 10);
   b.textAlign = 'left'; b.fillText('P.' + String(Math.min(30, Math.floor(t) + 1)).padStart(2, '0'), 32, 930);
   b.textAlign = 'right'; b.fillText('2026 — AUTUMN', 508, 930); b.restore();
 }
@@ -450,8 +451,8 @@ function sceneLogo(t) {
   b.save(); b.globalAlpha = kk; b.fillStyle = P.ink; b.font = it(500, 118); b.textAlign = 'center'; b.textBaseline = 'middle'; b.fillText('A', 270, cy - 4 + (1 - kk) * 8);
   b.fillStyle = P.apricot; b.beginPath(); b.arc(318, cy + 36, 5, 0, 7); b.fill(); b.restore();
   const wk = E.outCubic(seg(t, T0.logo + 1.4, T0.logo + 2.2));
-  b.save(); b.globalAlpha = wk; b.textAlign = 'center'; b.fillStyle = P.ink; b.font = it(500, 58); b.fillText('AI challenge365', 270, 548 + (1 - wk) * 10);
-  b.font = jp(600, 16); b.fillStyle = P.ink2; const w = spacedW(b, '愛の挑戦365', 4); b.textAlign = 'left'; spaced(b, '愛の挑戦365', 270 - w / 2, 584, 4); b.restore();
+  b.save(); b.globalAlpha = wk; b.textAlign = 'center'; b.fillStyle = P.ink; b.font = jp(800, 44); b.fillText('AIチャレンジ365', 270, 552 + (1 - wk) * 10);
+  b.restore();
   /* the opening line returns, small, as a signature */
   b.fillStyle = P.ink; b.font = jp(600, 20);
   vtext(b, SENT, 486, 176, 20, i => E.outCubic(seg(t, T0.logo + 2.0 + i * .08, T0.logo + 2.5 + i * .08)));
@@ -460,7 +461,7 @@ function sceneLogo(t) {
   const c1 = E.outCubic(seg(t, T0.contact + .1, T0.contact + .8)), c2 = E.outCubic(seg(t, T0.contact + .4, T0.contact + 1.1));
   b.save(); b.textAlign = 'center';
   b.globalAlpha = c1; b.font = it(400, 24); b.fillStyle = P.ink; b.fillText('Portfolio & Contact', 270, 730 + (1 - c1) * 8);
-  b.globalAlpha = c2; b.font = jp(600, 20); b.fillText('AIチャレンジ365', 270, 770 + (1 - c2) * 8);
+  b.globalAlpha = c2;
   b.font = jp(600, 14); b.fillStyle = P.ink2; b.fillText('DMでお気軽にどうぞ', 270, 804 + (1 - c2) * 8);
   b.restore();
   captions(t, P.ink2);

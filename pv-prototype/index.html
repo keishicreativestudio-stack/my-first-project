@@ -1,4 +1,5 @@
-<title>AI challenge365 PV 試作</title>
+<meta charset="utf-8">
+<title>AIチャレンジ365 PV 試作</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>
@@ -47,7 +48,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
   <div class="screen"><canvas id="cv" aria-label="プロモーション映像の試作"></canvas></div>
   <div class="side">
     <div>
-      <h1>AI challenge365 PV 試作</h1>
+      <h1>AIチャレンジ365 PV 試作</h1>
       <p class="muted">台本「言葉を、かたちに。」の30秒版。作品はすべて仮で、コードで描いています。</p>
     </div>
     <div class="row">
@@ -84,7 +85,7 @@ const frameOf = t => Math.floor(t * FPS + 1e-6);
 const $ = id => document.getElementById(id);
 
 /* ================= copy & palette ================= */
-const BRAND = { name: 'AI challenge365', sub: '愛の挑戦365', tag: '言葉を、かたちに。', handle: 'AIチャレンジ365', dm: 'DMでご相談ください', hook: 'ロゴ、つくって。' };
+const BRAND = { name: 'AIチャレンジ365', sub: '', tag: '言葉を、かたちに。', handle: 'DMでご相談ください', dm: '', hook: 'ロゴ、つくって。' };
 const C = { ink: '#0a0b0f', paper: '#f2f2ee', accent: '#3d63ff', accentHi: '#8fa6ff', white: '#ffffff', grey: '#8d93a5' };
 const font = (w, px) => `${w} ${px}px "Zen Kaku Gothic New", "Hiragino Sans", sans-serif`;
 const mono = (w, px) => `${w} ${px}px "IBM Plex Mono", ui-monospace, monospace`;

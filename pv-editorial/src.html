@@ -1,0 +1,521 @@
+<title>keishi studio PV Editorial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Cormorant+Garamond:ital,wght@1,400;1,500;1,600&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a vertical 9:16 monitor beside a quiet contents list, like a magazine's table of contents. Single committed light look. */
+:root {
+  --fog: #e5e7e8;
+  --paper: #f1f2f2;
+  --ink: #1e2023;
+  --ink-2: #6b6f76;
+  --rule: #cfd3d6;
+  --apricot: #d9895e;
+  --serif-jp: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --serif: "Cormorant Garamond", "Times New Roman", serif;
+  --mono: "DM Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+html, body { background: var(--fog); color: var(--ink); }
+body { font-family: var(--serif-jp); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.8; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 36px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: var(--paper); justify-self: center; box-shadow: 0 30px 60px -30px rgba(30, 32, 35, .35); }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 20px; min-width: 0; }
+.kicker { font: 400 11px var(--mono); letter-spacing: .18em; color: var(--ink-2); text-transform: uppercase; }
+h1 { font: italic 500 40px/1.05 var(--serif); margin: 4px 0 6px; }
+.lede { font-size: 14px; color: var(--ink-2); margin: 0; max-width: 40ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 400 12px var(--mono); letter-spacing: .06em; color: var(--ink); background: transparent; border: 1px solid var(--ink); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+button:hover { background: var(--ink); color: var(--paper); }
+button.primary { background: var(--ink); color: var(--paper); min-width: 96px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--apricot); outline-offset: 2px; }
+.tc { font: 400 13px var(--mono); font-variant-numeric: tabular-nums; }
+.tc small { color: var(--ink-2); }
+input[type=range] { width: 100%; accent-color: var(--ink); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font: 400 12px var(--mono); color: var(--ink-2); }
+ol.toc { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+ol.toc li { border-bottom: 1px solid var(--rule); }
+ol.toc button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: baseline; padding: 11px 4px; }
+ol.toc button:focus-visible { outline: 2px solid var(--apricot); }
+ol.toc .n { font: italic 500 22px var(--serif); }
+ol.toc b { font-weight: 600; font-size: 15px; }
+ol.toc span.d { display: block; font-size: 12px; color: var(--ink-2); }
+ol.toc .t { font: 400 11px var(--mono); color: var(--ink-2); }
+ol.toc li.on .n, ol.toc li.on b { color: var(--apricot); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="プロモーション映像の試作（おしゃれ版）"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="kicker">keishi creative studio · Vol.01</div>
+      <h1>Words, into form.</h1>
+      <p class="lede">「言葉を、かたちに。」を雑誌の1ページのように組み直した30秒版。テンポ90のLo-fiに合わせて動きます。作品はすべて仮です。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ Play</button>
+      <button id="snd" aria-pressed="true">Sound on</button>
+      <button id="prev">‹ 1f</button>
+      <button id="next">1f ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> Loop</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ol class="toc" id="toc"></ol>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 90, BEAT = 60 / BPM, BAR = BEAT * 4;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outCubic: k => 1 - Math.pow(1 - k, 3),
+  inOutCubic: k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
+  outQuint: k => 1 - Math.pow(1 - k, 5),
+  inOutQuint: k => k < .5 ? 16 * Math.pow(k, 5) : 1 - Math.pow(-2 * k + 2, 5) / 2,
+  inOutSine: k => -(Math.cos(Math.PI * k) - 1) / 2,
+};
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const mix = (a, b, k) => { const pa = a.match(/\w\w/g).map(h => parseInt(h, 16)), pb = b.match(/\w\w/g).map(h => parseInt(h, 16)); return `rgb(${pa.map((v, i) => Math.round(lerp(v, pb[i], k))).join(',')})`; };
+
+/* ================= palette & type ================= */
+const P = { fog: '#e5e7e8', paper: '#f1f2f2', ink: '#1e2023', ink2: '#6b6f76', charcoal: '#26282c', apricot: '#e59a6f', blush: '#ead9d3', sage: '#dbe1d4', lilac: '#dcd9e6', mist: '#d3dbe0', rose: '#c99a93', olive: '#9aa38c' };
+const jp = (w, px) => `${w} ${px}px "Shippori Mincho B1", "Hiragino Mincho ProN", serif`;
+const it = (w, px) => `italic ${w} ${px}px "Cormorant Garamond", "Times New Roman", serif`;
+const mono = (w, px) => `${w} ${px}px "DM Mono", ui-monospace, monospace`;
+const font = (w, px) => jp(800, px); // used by the shared sticker-face helpers
+
+/* ================= timeline (bars of 90 BPM) ================= */
+const T0 = {
+  hook: 0, sentence: BAR, iris: BAR * 1.75, spreads: BAR * 2, pause: BAR * 4, grid: BAR * 6, logo: BAR * 8, contact: BAR * 10, fade: 29.2,
+};
+const SPREADS = [
+  { n: '01', en: 'Poster', ja: '春を、一枚に。', v: 'ポスター', bg: P.fog, work: 'poster' },
+  { n: '02', en: 'Character', ja: '想いを、姿に。', v: 'キャラクター', bg: P.blush, work: 'portrait' },
+  { n: '03', en: 'Sticker', ja: '気持ちを、スタンプに。', v: 'スタンプ', bg: P.sage, work: 'stickers' },
+  { n: '04', en: 'Film', ja: '記憶を、映像に。', v: 'えいぞう', bg: P.lilac, work: 'film' },
+];
+const SP_LEN = BEAT * 2;
+/* grid section: one event per beat */
+const ROWS = [[0, 300], [300, 360], [660, 300]];
+const GRID_EV = [
+  { j: 0, row: 0, dir: 1, work: 'still', seed: 1, bg: P.sage },
+  { j: 1, row: 1, dir: -1, work: 'poster', seed: 3, bg: P.blush },
+  { j: 2, row: 2, dir: 1, work: 'still', seed: 4, bg: P.lilac },
+  { j: 3, row: 1, dir: 1, work: 'duo', seed: 2, bg: P.mist },
+  { j: 4, row: 0, dir: -1, work: 'film', seed: 2, bg: P.fog },
+  { j: 5, row: 2, dir: -1, work: 'monogram', seed: 1, bg: P.sage },
+  { j: 6, row: 0, dir: 1, word: ['idea', 'おもいつき'], bg: P.apricot },
+  { j: 6.2, row: 1, dir: -1, word: ['words', 'ことば'], bg: P.ink },
+  { j: 6.4, row: 2, dir: 1, word: ['form', 'かたち'], bg: P.paper },
+];
+const CUES = {
+  bpm: BPM, t0: T0, end: T0.fade,
+  spreads: SPREADS.map((_, i) => T0.spreads + i * SP_LEN),
+  grid: GRID_EV.map(e => T0.grid + e.j * BEAT),
+  gridOut: T0.grid + 7 * BEAT,
+};
+window.CUES = CUES;
+
+/* ================= canvases ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const buf = document.createElement('canvas'), b = buf.getContext('2d');
+const layer = document.createElement('canvas'), lg = layer.getContext('2d');
+const HAS_FILTER = 'filter' in ctx;
+let S = 1;
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  const h = Math.round(w * 16 / 9);
+  for (const c of [cv, buf, layer]) { c.width = w; c.height = h; }
+  S = w / LW;
+  buildGrain(); buildVignette(); render(T);
+}
+let grains = [], vignette;
+function buildGrain() {
+  grains = [0, 1, 2, 3, 4, 5].map(k => {
+    const c = document.createElement('canvas'); c.width = c.height = 180;
+    const g = c.getContext('2d'), im = g.createImageData(180, 180);
+    for (let i = 0; i < im.data.length; i += 4) { const v = hash(i * .61 + k * 777) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
+    g.putImageData(im, 0, 0); return c;
+  });
+}
+function buildVignette() {
+  vignette = document.createElement('canvas'); vignette.width = cv.width; vignette.height = cv.height;
+  const g = vignette.getContext('2d'), W = cv.width, H = cv.height;
+  const r = g.createRadialGradient(W / 2, H * .48, H * .32, W / 2, H * .48, H * .7);
+  r.addColorStop(0, 'rgba(40,30,30,0)'); r.addColorStop(1, 'rgba(40,30,30,.32)');
+  g.fillStyle = r; g.fillRect(0, 0, W, H);
+}
+
+/* ================= shared drawing helpers ================= */
+/*SIL*/
+/*FACES*/
+let silCv = null;
+function buildSil() {
+  const res = 2, w = 300, h = 440, pad = 20;
+  silCv = document.createElement('canvas'); silCv.width = (w + pad * 2) * res; silCv.height = (h + pad * 2) * res;
+  const g = silCv.getContext('2d'); g.setTransform(res, 0, 0, res, pad * res, pad * res); g.fillStyle = '#2a2324';
+  defaultSilhouette(g);
+}
+/* vertical Japanese: x is the column centre, y the top */
+function vtext(g, str, x, y, size, alphaAt, dyAt) {
+  const base = g.globalAlpha;
+  g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
+  [...str].forEach((c, i) => {
+    const a = alphaAt ? alphaAt(i) : 1; if (a <= 0) return;
+    let cx = x, cy = y + i * size * 1.12 + size / 2;
+    if ('、。'.includes(c)) { cx += size * .56; cy -= size * .56; }
+    g.globalAlpha = base * a;
+    if ('ー〜'.includes(c)) { g.save(); g.translate(cx, cy + (dyAt ? dyAt(i) : 0)); g.rotate(Math.PI / 2); g.fillText(c, 0, 0); g.restore(); }
+    else g.fillText(c, cx, cy + (dyAt ? dyAt(i) : 0));
+  });
+  g.restore();
+}
+function spaced(g, s, x, y, gap) { let cx = x; for (const c of s) { g.fillText(c, cx, y); cx += g.measureText(c).width + gap; } return cx - x; }
+function spacedW(g, s, gap) { let w = 0; for (const c of s) w += g.measureText(c).width + gap; return w - gap; }
+
+/* ================= placeholder works (editorial) ================= */
+const STILL_PAL = [['#d8cfc6', '#c3b6a8', '#e59a6f', '#f1ece6'], ['#cfd6d9', '#b8c3c8', '#9aa38c', '#eef1f2'], ['#dcd4e2', '#c6bccf', '#c99a93', '#f3f0f5'], ['#d7dccf', '#c1c8b6', '#e3c07c', '#f2f3ee']];
+function still(g, w, h, s) {
+  const [wall, floor, obj, hi] = STILL_PAL[s % STILL_PAL.length], hz = h * .64;
+  g.fillStyle = wall; g.fillRect(0, 0, w, hz); g.fillStyle = floor; g.fillRect(0, hz, w, h - hz);
+  const lw = g.createLinearGradient(0, 0, w, 0); lw.addColorStop(0, 'rgba(255,255,255,.28)'); lw.addColorStop(1, 'rgba(0,0,0,.08)');
+  g.fillStyle = lw; g.fillRect(0, 0, w, h);
+  /* arch */
+  const ax = w * (.2 + hash(s) * .25), aw = w * .34, ah = h * .5;
+  g.fillStyle = hi; g.beginPath(); g.moveTo(ax, hz); g.lineTo(ax, hz - ah + aw / 2); g.arc(ax + aw / 2, hz - ah + aw / 2, aw / 2, Math.PI, 0); g.lineTo(ax + aw, hz); g.fill();
+  /* pedestal + sphere with soft shading */
+  const px = w * (.52 + hash(s + 2) * .12), pw = w * .26, ph = h * .12;
+  g.fillStyle = 'rgba(0,0,0,.12)'; g.beginPath(); g.ellipse(px + pw * .7, hz + ph * .9, pw * .8, ph * .22, 0, 0, 7); g.fill();
+  g.fillStyle = hi; g.fillRect(px, hz - ph * .2, pw, ph); g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(px + pw * .6, hz - ph * .2, pw * .4, ph);
+  const r = w * .12, sx = px + pw / 2, sy = hz - ph * .2 - r;
+  const sg = g.createRadialGradient(sx - r * .4, sy - r * .4, r * .1, sx, sy, r * 1.05);
+  sg.addColorStop(0, '#fff6ee'); sg.addColorStop(.35, obj); sg.addColorStop(1, 'rgba(60,40,30,.9)');
+  g.fillStyle = sg; g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill();
+}
+const POSTER_PAL = [['#efe9e3', '#1e2023', '#e59a6f'], ['#dfe4dc', '#1e2023', '#9aa38c'], ['#e7e1ec', '#1e2023', '#c99a93'], ['#1e2023', '#f1f2f2', '#e59a6f']];
+const POSTER_TXT = [['春の音', 'Sounds of Spring'], ['午後の庭', 'Afternoon Garden'], ['月と紙', 'Moon & Paper'], ['夜の読書', 'Night Reading']];
+function poster(g, w, h, s) {
+  const [bg, ink, acc] = POSTER_PAL[s % POSTER_PAL.length], [ja, en] = POSTER_TXT[s % POSTER_TXT.length];
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  g.fillStyle = acc; g.beginPath(); g.arc(w * .42, h * .42, w * .3, 0, 7); g.fill();
+  g.strokeStyle = ink; g.lineWidth = 1; g.beginPath(); g.arc(w * .56, h * .5, w * .3, 0, 7); g.stroke();
+  g.fillStyle = ink; g.font = jp(800, w * .1); vtext(g, ja, w * .84, h * .1, w * .1);
+  g.font = it(500, w * .07); g.fillText(en, w * .08, h * .86);
+  g.font = mono(400, w * .032); g.fillText('2026.04.12 SAT — 04.20 SUN', w * .08, h * .92);
+  g.fillRect(w * .08, h * .8, w * .3, 1);
+}
+function portrait(g, w, h, s) {
+  const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#e8d8cf'); bg.addColorStop(1, '#d9c3b8');
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  const cy = h * .42, r = g.createRadialGradient(w / 2, cy, 0, w / 2, cy, w * .6);
+  r.addColorStop(0, 'rgba(255,238,220,1)'); r.addColorStop(.4, 'rgba(240,180,140,.55)'); r.addColorStop(1, 'rgba(240,180,140,0)');
+  g.fillStyle = r; g.fillRect(0, 0, w, h);
+  const k = h * .8 / 480, sw = silCv.width / 2 * k, shh = silCv.height / 2 * k;
+  g.save(); g.shadowColor = 'rgba(255,220,190,.9)'; g.shadowBlur = 18 * S; g.drawImage(silCv, w / 2 - sw / 2, h - shh + 10 * k, sw, shh); g.restore();
+}
+const FACE = [['#f3c9b7', 0], ['#cfd9c4', 1], ['#d6cfe4', 3], ['#f0dcb0', 2]];
+const FACE_TXT = ['ありがと', 'おつかれ', 'すき', 'りょうかい'];
+function stickers(g, w, h, s) {
+  g.fillStyle = '#f3f1ee'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 4; i++) {
+    const cx = w * (.28 + (i % 2) * .44), cy = h * (.27 + Math.floor(i / 2) * .45), r = w * .14;
+    stickerFace(g, cx, cy, r, FACE[i][0], FACE[i][1]);
+    g.save(); g.font = jp(800, w * .065); g.textAlign = 'center'; g.fillStyle = '#3a3438'; g.fillText(FACE_TXT[i], cx, cy + r * 1.75); g.restore();
+  }
+}
+function film(g, w, h, s) {
+  const skies = [['#c9b8c8', '#f0c7a8'], ['#b9c7cf', '#efd9c2'], ['#cdbfb2', '#f3d2b5']];
+  const [top, bot] = skies[s % skies.length];
+  const sky = g.createLinearGradient(0, 0, 0, h * .62); sky.addColorStop(0, top); sky.addColorStop(1, bot);
+  g.fillStyle = sky; g.fillRect(0, 0, w, h);
+  g.fillStyle = 'rgba(255,245,230,.95)'; g.beginPath(); g.arc(w * .62, h * .55, w * .07, 0, 7); g.fill();
+  const sea = g.createLinearGradient(0, h * .62, 0, h); sea.addColorStop(0, '#9fb0b8'); sea.addColorStop(1, '#6f8290');
+  g.fillStyle = sea; g.fillRect(0, h * .62, w, h * .38);
+  g.fillStyle = 'rgba(255,240,220,.6)'; for (let i = 0; i < 9; i++) g.fillRect(w * .62 - (18 - i) * w * .006, h * (.64 + i * .03), (36 - i * 2) * w * .006, 1.5);
+  g.fillStyle = '#3a3438'; g.fillRect(w * .3, h * .56, w * .018, h * .06); g.beginPath(); g.arc(w * .309, h * .55, w * .014, 0, 7); g.fill();
+  g.fillStyle = '#16171a'; g.fillRect(0, 0, w, h * .12); g.fillRect(0, h * .88, w, h * .12);
+  g.fillStyle = '#f1f2f2'; g.font = jp(600, w * .045); g.textAlign = 'center'; g.fillText('また、明日。', w / 2, h * .84); g.textAlign = 'left';
+}
+function monogram(g, w, h, s) {
+  g.fillStyle = ['#1e2023', '#efe9e3', '#dfe4dc'][s % 3]; g.fillRect(0, 0, w, h);
+  const ink = s % 3 === 0 ? '#f1f2f2' : '#1e2023';
+  g.strokeStyle = ink; g.fillStyle = ink; g.lineWidth = 1.2;
+  g.beginPath(); g.arc(w / 2, h * .44, w * .2, 0, 7); g.stroke();
+  g.font = it(500, w * .26); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(['h', 'm', 's'][s % 3], w / 2, h * .43);
+  g.textBaseline = 'alphabetic'; g.font = mono(400, w * .04); g.fillText(['HANA TEA', 'MORI BOOKS', 'SORA HOTEL'][s % 3], w / 2, h * .76); g.textAlign = 'left';
+}
+function duo(g, w, h, s) { drawWork(g, 'still', s + 1, 0, 0, w / 2 - 2, h); drawWork(g, 'poster', s + 2, w / 2 + 2, 0, w / 2 - 2, h); }
+const WORK = { still, poster, portrait, stickers, film, monogram, duo };
+function drawWork(g, kind, seed, x, y, w, h, zoom = 1, px = 0) {
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  g.translate(x + w / 2 + px, y + h / 2); g.scale(zoom, zoom); g.translate(-w / 2, -h / 2);
+  WORK[kind](g, w, h, seed); g.restore();
+}
+
+/* ================= scenes ================= */
+const COLX = 430, COLY = 150, COLSZ = 50, SENT = '言葉を、かたちに。';
+function captions(t, col, alpha = 1) {
+  b.save(); b.globalAlpha = alpha; b.fillStyle = col; b.font = mono(400, 10);
+  spaced(b, 'VOL.01', 32, 44, 2.5); b.textAlign = 'right'; b.fillText('KEISHI CREATIVE STUDIO', 508, 44);
+  b.textAlign = 'left'; b.fillText('P.' + String(Math.min(30, Math.floor(t) + 1)).padStart(2, '0'), 32, 930);
+  b.textAlign = 'right'; b.fillText('2026 — AUTUMN', 508, 930); b.restore();
+}
+
+function sceneOpening(t) {
+  b.fillStyle = P.fog; b.fillRect(0, 0, LW, LH);
+  /* camera: starts deep inside the first glyph, then pulls back to reveal the column */
+  const drift = seg(t, 0, 2.1), pull = E.inOutQuint(seg(t, 1.95, BAR));
+  const sc = Math.exp(lerp(Math.log(lerp(15, 12.5, E.inOutSine(drift))), 0, pull));
+  const ax = lerp(270, COLX, pull), ay = lerp(470, COLY + COLSZ / 2, pull), rot = lerp(-.07, 0, E.outCubic(seg(t, 0, BAR)));
+  b.save(); b.translate(ax, ay); b.rotate(rot); b.scale(sc, sc); b.translate(-COLX, -(COLY + COLSZ / 2));
+  b.fillStyle = P.ink; b.font = jp(800, COLSZ);
+  const inA = E.outCubic(seg(t, 0, .6));
+  vtext(b, SENT, COLX, COLY, COLSZ, i => i === 0 ? inA : E.outCubic(seg(t, 2.35 + i * .07, 2.75 + i * .07)));
+  b.restore();
+  /* latin + rule once the column is revealed */
+  const lk = E.outCubic(seg(t, 2.9, 3.6)), rk = E.inOutCubic(seg(t, 3.1, 4.0));
+  b.fillStyle = P.ink; b.fillRect(360, COLY, 1, 560 * rk);
+  b.save(); b.globalAlpha = lk; b.font = it(500, 52); b.fillText('Words,', 40, 560 + (1 - lk) * 10);
+  b.globalAlpha = E.outCubic(seg(t, 3.15, 3.85)); b.fillText('into form.', 40, 614 + (1 - lk) * 10);
+  b.globalAlpha = E.outCubic(seg(t, 3.5, 4.2)); b.font = mono(400, 11); b.fillStyle = P.ink2; spaced(b, 'FIG. 01 — 言', 42, 660, 1.5);
+  b.restore();
+  captions(t, P.ink2, E.outCubic(seg(t, .3, 1.2)));
+}
+
+function spreadAt(g, i, t, dx) {
+  const s = SPREADS[i], t0 = T0.spreads + i * SP_LEN, u = t - t0;
+  g.save(); g.translate(dx, 0);
+  g.fillStyle = s.bg; g.fillRect(-2, 0, LW + 4, LH);
+  /* frame with a slow push-in; the picture moves a little more than the frame for depth */
+  const zoom = 1.06 - .05 * E.inOutSine(clamp((u + .4) / (SP_LEN + .8)));
+  drawWork(g, s.work, i, 56, 140, 428, 570, zoom, -dx * .18);
+  g.fillStyle = P.ink;
+  const ck = k => E.outCubic(seg(u, k, k + .45));
+  g.globalAlpha = ck(.05); g.font = it(400, 64); g.fillText(s.n, 52, 790);
+  g.globalAlpha = ck(.12); g.font = it(500, 30); g.fillText(s.en, 128, 782);
+  g.globalAlpha = ck(.2); g.font = jp(600, 22); g.fillText(s.ja, 56, 846);
+  g.globalAlpha = ck(.25); g.font = jp(600, 13); vtext(g, s.v, 508, 150, 13);
+  g.font = mono(400, 10); g.fillStyle = P.ink2; g.globalAlpha = ck(0); spaced(g, 'WORKS', 56, 112, 3);
+  g.restore();
+}
+function sceneIrisAndSpreads(t) {
+  if (t < T0.spreads) {
+    sceneOpening(Math.min(t, T0.iris + .01));
+    /* iris opens onto the first spread */
+    const k = E.inOutCubic(seg(t, T0.iris, T0.spreads)), r = 640 * k;
+    if (r > 0) {
+      b.save(); b.beginPath(); b.arc(270, 470, r, 0, 7); b.clip(); spreadAt(b, 0, t, 0); b.restore();
+      b.strokeStyle = P.ink; b.lineWidth = 1; b.beginPath(); b.arc(270, 470, r, 0, 7); b.stroke();
+    }
+    return;
+  }
+  const i = clamp(Math.floor((t - T0.spreads) / SP_LEN), 0, 3), tn = T0.spreads + (i + 1) * SP_LEN;
+  /* push to the next spread across the last third of a beat */
+  const k = i < 3 ? E.inOutCubic(seg(t, tn - .34, tn)) : 0;
+  spreadAt(b, i, t, -LW * k);
+  if (k > 0) spreadAt(b, i + 1, t, LW * (1 - k));
+  captions(t, P.ink2);
+}
+
+const COLLAGE = Array.from({ length: 11 }, (_, i) => ({
+  kind: ['still', 'poster', 'film', 'monogram', 'portrait', 'still', 'poster', 'stickers', 'film', 'still', 'monogram'][i],
+  x: [70, 380, 150, 440, 40, 300, 470, 90, 250, 420, 190][i], y: [120, 90, 330, 380, 560, 610, 740, 820, 900, 1010, 1080][i],
+  w: [120, 130, 100, 90, 140, 110, 95, 120, 130, 110, 100][i], z: .35 + hash(i + 70) * .65,
+}));
+function scenePause(t) {
+  const u = t - T0.pause, into = E.inOutCubic(seg(t, T0.pause - .25, T0.pause + .4));
+  b.fillStyle = mix(P.lilac.slice(1), P.charcoal.slice(1), into); b.fillRect(0, 0, LW, LH);
+  /* floating works at different depths, drifting upward */
+  for (const c of COLLAGE.slice().sort((a, b2) => a.z - b2.z)) {
+    const y = c.y - u * (26 + 40 * c.z) - (1 - into) * 60, w = c.w * (.7 + c.z * .5), h = w * 1.3;
+    b.save(); b.globalAlpha = (.25 + .6 * c.z) * into;
+    b.shadowColor = 'rgba(0,0,0,.35)'; b.shadowBlur = 16 * S * c.z; b.shadowOffsetY = 6 * S * c.z;
+    b.fillStyle = '#000'; b.fillRect(c.x, y, w, h); b.shadowColor = 'transparent';
+    drawWork(b, c.kind, Math.floor(c.z * 10), c.x, y, w, h); b.restore();
+  }
+  /* soft scrim so the words read */
+  const sg = b.createRadialGradient(270, 480, 60, 270, 480, 360); sg.addColorStop(0, 'rgba(38,40,44,.85)'); sg.addColorStop(1, 'rgba(38,40,44,0)');
+  b.fillStyle = sg; b.fillRect(0, 0, LW, LH);
+  b.fillStyle = P.paper; b.font = jp(800, 40);
+  const L1 = '思いついたら、', L2 = 'もう、かたち。';
+  vtext(b, L1, 318, 300, 40, i => E.outCubic(seg(t, T0.pause + .5 + i * .12, T0.pause + 1.1 + i * .12)), i => (1 - E.outCubic(seg(t, T0.pause + .5 + i * .12, T0.pause + 1.1 + i * .12))) * 12);
+  vtext(b, L2, 238, 356, 40, i => E.outCubic(seg(t, T0.pause + 1.6 + i * .12, T0.pause + 2.2 + i * .12)), i => (1 - E.outCubic(seg(t, T0.pause + 1.6 + i * .12, T0.pause + 2.2 + i * .12))) * 12);
+  b.save(); b.globalAlpha = E.outCubic(seg(t, T0.pause + 2.6, T0.pause + 3.4)); b.font = it(400, 22); b.textAlign = 'center';
+  b.fillText('— the moment you think of it.', 270, 790); b.restore();
+  /* warm light leak drifting across */
+  lightLeak(t, T0.pause + 1.2, T0.grid - .2, .55);
+  captions(t, 'rgba(241,242,242,.55)');
+  /* hand off to the grid with a soft fade to paper */
+  const out = seg(t, T0.grid - .35, T0.grid);
+  if (out > 0) { b.fillStyle = `rgba(241,242,242,${E.inOutCubic(out)})`; b.fillRect(0, 0, LW, LH); }
+}
+function lightLeak(t, a, z, amt) {
+  const k = seg(t, a, z); if (k <= 0 || k >= 1) return;
+  const e = E.inOutSine(k), x = lerp(-200, 740, e), y = lerp(260, 700, e), A = Math.sin(Math.PI * k) * amt;
+  b.save(); b.globalCompositeOperation = 'screen';
+  for (const [dx, dy, r, c] of [[0, 0, 360, '229,154,111'], [120, -160, 240, '232,190,160'], [-90, 180, 200, '201,154,147']]) {
+    const g = b.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+    g.addColorStop(0, `rgba(${c},${A})`); g.addColorStop(1, `rgba(${c},0)`);
+    b.fillStyle = g; b.fillRect(0, 0, LW, LH);
+  }
+  b.restore();
+}
+
+function rowContent(g, ev, y, h, t) {
+  g.fillStyle = ev.bg; g.fillRect(0, y, LW, h);
+  if (ev.word) {
+    const dark = ev.bg === P.ink;
+    g.fillStyle = dark ? P.paper : P.ink; g.font = it(400, 118); g.fillText(ev.word[0], 36, y + h * .66);
+    g.font = jp(600, 16); vtext(g, ev.word[1], 500, y + 28, 16);
+    return;
+  }
+  const u = t - (T0.grid + ev.j * BEAT);
+  drawWork(g, ev.work, ev.seed, 0, y, LW, h, 1.08 - .06 * E.inOutSine(clamp(u / 2)));
+  g.fillStyle = 'rgba(241,242,242,.92)'; g.fillRect(24, y + h - 44, 128, 24);
+  g.fillStyle = P.ink; g.font = mono(400, 10); spaced(g, ev.work.toUpperCase() + ' · ' + String(ev.j + 1).padStart(2, '0'), 32, y + h - 28, 1.4);
+}
+function sceneGrid(t) {
+  b.fillStyle = P.paper; b.fillRect(0, 0, LW, LH);
+  /* empty rows wait as a faint layout grid with their numbers */
+  b.save(); b.strokeStyle = 'rgba(30,32,35,.12)'; b.lineWidth = 1;
+  for (let x = 45; x < LW; x += 90) { b.beginPath(); b.moveTo(x, 0); b.lineTo(x, LH); b.stroke(); }
+  b.fillStyle = 'rgba(30,32,35,.35)'; b.font = it(400, 46);
+  ROWS.forEach(([y, h], r) => b.fillText(['i', 'ii', 'iii'][r], 36, y + h / 2 + 14));
+  b.font = mono(400, 10); ROWS.forEach(([y, h], r) => spaced(b, 'PLATE ' + String(r + 1).padStart(2, '0'), 36, y + h / 2 + 40, 2));
+  b.restore();
+  const out = T0.grid + 7 * BEAT;
+  ROWS.forEach(([y, h], r) => {
+    const evs = GRID_EV.filter(e => e.row === r && T0.grid + e.j * BEAT <= t);
+    if (!evs.length) return;
+    const cur = evs[evs.length - 1], prev = evs[evs.length - 2];
+    const k = E.inOutQuint(seg(t, T0.grid + cur.j * BEAT, T0.grid + cur.j * BEAT + .5));
+    /* exit: rows slide away alternately on the last beat */
+    const ek = E.inOutQuint(seg(t, out + r * .08, out + .55 + r * .08)), ex = (r % 2 ? 1 : -1) * LW * ek;
+    b.save(); b.translate(ex, 0); b.beginPath(); b.rect(0, y, LW, h); b.clip();
+    if (prev) rowContent(b, prev, y, h, t);
+    b.translate(cur.dir * LW * (1 - k), 0); rowContent(b, cur, y, h, t);
+    b.restore();
+  });
+  /* hairlines between rows */
+  b.fillStyle = 'rgba(30,32,35,.25)'; b.fillRect(0, 300, LW, 1); b.fillRect(0, 660, LW, 1);
+}
+
+function sceneLogo(t) {
+  b.fillStyle = P.fog; b.fillRect(0, 0, LW, LH);
+  lightLeak(t, T0.logo + 1.2, T0.contact + 1.5, .35);
+  const cy = 380;
+  /* monogram circle draws itself */
+  const ck = E.inOutCubic(seg(t, T0.logo + .1, T0.logo + 1.3));
+  b.strokeStyle = P.ink; b.lineWidth = 1.2; b.beginPath(); b.arc(270, cy, 78, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ck); b.stroke();
+  const kk = E.outCubic(seg(t, T0.logo + .8, T0.logo + 1.6));
+  b.save(); b.globalAlpha = kk; b.fillStyle = P.ink; b.font = it(500, 118); b.textAlign = 'center'; b.textBaseline = 'middle'; b.fillText('k', 270, cy - 8 + (1 - kk) * 8);
+  b.fillStyle = P.apricot; b.beginPath(); b.arc(318, cy + 36, 5, 0, 7); b.fill(); b.restore();
+  const wk = E.outCubic(seg(t, T0.logo + 1.4, T0.logo + 2.2));
+  b.save(); b.globalAlpha = wk; b.textAlign = 'center'; b.fillStyle = P.ink; b.font = it(500, 66); b.fillText('keishi', 270, 548 + (1 - wk) * 10);
+  b.font = mono(400, 11); b.fillStyle = P.ink2; const w = spacedW(b, 'CREATIVE STUDIO', 4.5); b.textAlign = 'left'; spaced(b, 'CREATIVE STUDIO', 270 - w / 2, 580, 4.5); b.restore();
+  /* the opening line returns, small, as a signature */
+  b.fillStyle = P.ink; b.font = jp(600, 20);
+  vtext(b, SENT, 486, 176, 20, i => E.outCubic(seg(t, T0.logo + 2.0 + i * .08, T0.logo + 2.5 + i * .08)));
+  b.fillRect(270 - 20, 640, 40 * E.inOutCubic(seg(t, T0.logo + 2.2, T0.logo + 3)), 1);
+  /* contact */
+  const c1 = E.outCubic(seg(t, T0.contact + .1, T0.contact + .8)), c2 = E.outCubic(seg(t, T0.contact + .4, T0.contact + 1.1));
+  b.save(); b.textAlign = 'center';
+  b.globalAlpha = c1; b.font = it(400, 24); b.fillStyle = P.ink; b.fillText('Portfolio & Contact', 270, 730 + (1 - c1) * 8);
+  b.globalAlpha = c2; b.font = mono(400, 18); b.fillText('@keishi_studio', 270, 770 + (1 - c2) * 8);
+  b.font = jp(600, 14); b.fillStyle = P.ink2; b.fillText('DMでお気軽にどうぞ', 270, 804 + (1 - c2) * 8);
+  b.restore();
+  captions(t, P.ink2);
+  const fade = E.inOutCubic(seg(t, T0.fade, DUR));
+  if (fade > 0) { b.fillStyle = `rgba(229,231,232,${fade})`; b.fillRect(0, 0, LW, LH); }
+}
+
+/* ================= frame ================= */
+function renderScene(t) {
+  b.setTransform(S, 0, 0, S, 0, 0); b.globalAlpha = 1; b.globalCompositeOperation = 'source-over'; b.textAlign = 'left'; b.textBaseline = 'alphabetic';
+  if (t < T0.iris) sceneOpening(t);
+  else if (t < T0.pause - .25) sceneIrisAndSpreads(t);
+  else if (t < T0.grid) scenePause(t);
+  else if (t < T0.logo) sceneGrid(t);
+  else sceneLogo(t);
+}
+function compose(t) {
+  const W = cv.width, H = cv.height, f = frameOf(t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  /* gate weave: the frame drifts by a fraction of a pixel */
+  const wx = (hash(f * 1.7) - .5) * .7 * S, wy = (hash(f * 2.3) - .5) * .7 * S;
+  ctx.fillStyle = P.fog; ctx.fillRect(0, 0, W, H); ctx.drawImage(buf, wx, wy);
+  /* halation: a soft warm glow around bright areas */
+  if (HAS_FILTER) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .12; ctx.filter = `blur(${10 * S}px)`; ctx.drawImage(buf, 0, 0); ctx.restore(); ctx.filter = 'none'; }
+  /* film grade: warm cast, lifted blacks */
+  ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = 'rgba(229,154,111,.14)'; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'lighten'; ctx.fillStyle = 'rgb(38,35,38)'; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(vignette, 0, 0);
+  ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .09; ctx.fillStyle = ctx.createPattern(grains[f % 6], 'repeat'); ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  /* the odd speck of dust */
+  if (hash(f * 9.1) > .82) {
+    ctx.fillStyle = 'rgba(40,34,34,.5)'; const x = hash(f * 3.3) * W, y = hash(f * 5.7) * H;
+    ctx.beginPath(); ctx.ellipse(x, y, (1 + hash(f) * 2) * S, (.6 + hash(f + 1)) * S, hash(f + 2) * 3, 0, 7); ctx.fill();
+  }
+}
+let T = 0;
+function render(t) { T = t; if (!cv.width || !grains.length || !silCv) return; renderScene(t); compose(t); updateUi(); }
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const TOC = [[T0.hook, 'i', 'Opening', '「言」の一文字から引いていく'], [T0.iris, 'ii', 'Works', '4つの見開きを、2拍ずつ'], [T0.pause, 'iii', 'Interlude', '思いついたら、もう、かたち。'], [T0.grid, 'iv', 'Grid', '1拍ごとに1段ずつ差し替え'], [T0.logo, 'v', 'Signature', 'ロゴと署名、連絡先']];
+$('toc').innerHTML = TOC.map(([t, n, h, d]) => `<li><button data-t="${t}"><span class="n">${n}</span><span><b>${h}</b><span class="d">${d}</span></span><span class="t">${t.toFixed(1)}s</span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} s · bar ${Math.floor(T / BAR) + 1}.${Math.floor((T % BAR) / BEAT) + 1}</small>`;
+  let on = 0; TOC.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#toc li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ Pause' : '▶ Play'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? 'Sound on' : 'Sound off'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#toc button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + .02); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() { buildSil(); }
+new ResizeObserver(resize).observe(cv);
+Promise.all([jp(800, 50), jp(600, 20), it(500, 50), it(400, 50), mono(400, 11)].map(f => document.fonts.load(f, 'Aa言葉'))).catch(() => {}).then(() => {
+  build(); resize(); render(T0.logo + 4.2); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

@@ -1,4 +1,4 @@
-<title>keishi studio PV 試作</title>
+<title>AI challenge365 PV 試作</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>
@@ -47,7 +47,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
   <div class="screen"><canvas id="cv" aria-label="プロモーション映像の試作"></canvas></div>
   <div class="side">
     <div>
-      <h1>keishi studio PV 試作</h1>
+      <h1>AI challenge365 PV 試作</h1>
       <p class="muted">台本「言葉を、かたちに。」の30秒版。作品はすべて仮で、コードで描いています。</p>
     </div>
     <div class="row">
@@ -84,7 +84,7 @@ const frameOf = t => Math.floor(t * FPS + 1e-6);
 const $ = id => document.getElementById(id);
 
 /* ================= copy & palette ================= */
-const BRAND = { name: 'keishi', sub: 'creative studio', tag: '言葉を、かたちに。', handle: '@keishi_studio', dm: 'DMでご相談ください', hook: 'ロゴ、つくって。' };
+const BRAND = { name: 'AI challenge365', sub: '愛の挑戦365', tag: '言葉を、かたちに。', handle: 'AIチャレンジ365', dm: 'DMでご相談ください', hook: 'ロゴ、つくって。' };
 const C = { ink: '#0a0b0f', paper: '#f2f2ee', accent: '#3d63ff', accentHi: '#8fa6ff', white: '#ffffff', grey: '#8d93a5' };
 const font = (w, px) => `${w} ${px}px "Zen Kaku Gothic New", "Hiragino Sans", sans-serif`;
 const mono = (w, px) => `${w} ${px}px "IBM Plex Mono", ui-monospace, monospace`;
@@ -179,9 +179,9 @@ function drawMark(g, cx, cy, size, col = C.white, cursor = C.accent, alpha = 1) 
 }
 function drawWordmark(g, cx, y, sc = 1, alpha = 1) {
   g.save(); g.globalAlpha *= alpha; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  g.fillStyle = C.white; g.font = font(900, 64 * sc); g.fillText(BRAND.name, cx, y);
+  g.fillStyle = C.white; g.font = font(900, 64 * sc); const fit = Math.min(1, 470 * sc / g.measureText(BRAND.name).width); g.font = font(900, 64 * sc * fit); g.fillText(BRAND.name, cx, y);
   g.font = mono(500, 15 * sc); g.fillStyle = C.grey;
-  g.fillText([...BRAND.sub.toUpperCase()].join(' '), cx, y + 34 * sc);
+  g.font = font(700, 18 * sc); g.fillText(BRAND.sub, cx, y + 36 * sc);
   g.restore();
 }
 
@@ -568,7 +568,7 @@ function sceneLogo(t) {
   if (t < BTN0) caret(268, 772, 30, t, C.accent);
   if (t >= BTN0) {
     const keys = CUES.keys.filter(x => x >= BTN0), n = typedCount(keys, t), s = [...BRAND.handle].slice(0, n).join('');
-    b.font = mono(600, 24); b.textAlign = 'left'; const full = b.measureText(BRAND.handle).width, x0 = 270 - full / 2;
+    b.font = font(700, 26); b.textAlign = 'left'; const full = b.measureText(BRAND.handle).width, x0 = 270 - full / 2;
     b.fillStyle = C.accentHi; b.fillText(s, x0, 790);
     caret(x0 + b.measureText(s).width + 3, 782, 28, t, C.accent, t < keys[keys.length - 1] + .2);
     const dk = E.outExpo(seg(t, 28.95, 29.35));

@@ -1,0 +1,369 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 世界一周</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<style>
+/* Layout: the 9:16 player beside a flight itinerary of the 12 stops; sky blue and sunset coral; stacks on phones. */
+:root {
+  --bg: #eef4fb;
+  --card: #ffffff;
+  --ink: #10213a;
+  --muted: #5b6b82;
+  --line: #d6e0ec;
+  --sky: #2f7cf6;
+  --coral: #ff6b4a;
+  --jp: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+  --disp: "Anton", "Zen Kaku Gothic New", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0b1422; --card: #121e30; --ink: #eaf1fb; --muted: #93a3ba; --line: #22324a; --sky: #6aa4ff; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0b1422; --card: #121e30; --ink: #eaf1fb; --muted: #93a3ba; --line: #22324a; --sky: #6aa4ff; color-scheme: dark; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--jp); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.7; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; border-radius: 14px; overflow: hidden; box-shadow: 0 12px 30px rgba(16, 33, 58, .25); }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font: 400 13px var(--disp); letter-spacing: .25em; color: var(--coral); }
+h1 { font: 900 40px/1.15 var(--jp); margin: 6px 0; }
+h1 span { color: var(--sky); }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 44ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 700 13px var(--jp); color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 7px 16px; cursor: pointer; }
+button:hover { border-color: var(--sky); }
+button.primary { background: var(--coral); border-color: var(--coral); color: #fff; min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+.tc { font: 700 13px var(--jp); font-variant-numeric: tabular-nums; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--coral); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+ol.route { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+ol.route button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 28px 1fr; gap: 6px; padding: 6px 10px; border-radius: 8px; cursor: pointer; background: var(--card); border: 1px solid var(--line); font-size: 13px; }
+ol.route button:focus-visible { outline: 2px solid var(--sky); }
+ol.route .n { font: 400 14px var(--disp); color: var(--muted); }
+ol.route li.on button { border-color: var(--coral); }
+ol.route li.on .n { color: var(--coral); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 世界一周"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AI CHALLENGE 365 · 30 SEC · 120 BPM</div>
+      <h1>パスポートなしで、<span>世界一周。</span></h1>
+      <p class="lede">飛行機の窓から飛び出して、ビートに合わせて12都市を駆け抜ける30秒。どの街でも赤いジャケットの旅人が同じ位置に立つように合わせて、パスポートのスタンプを押していきます。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ol class="route" id="route"></ol>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 120, BEAT = 60 / BPM;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const sm = k => k * k * (3 - 2 * k);
+const outC = k => 1 - Math.pow(1 - k, 3);
+const outB = k => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const inOut = k => -(Math.cos(Math.PI * k) - 1) / 2;
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const disp = px => `400 ${px}px "Anton", "Zen Kaku Gothic New", sans-serif`;
+const jp = (w, px) => `${w} ${px}px "Zen Kaku Gothic New", "Hiragino Sans", sans-serif`;
+const B = x => x * BEAT;
+const CORAL = '#ff6b4a', SKY = '#2f7cf6';
+
+/* ================= route (in beats) ================= */
+/* anchor = where the traveler's backpack sits in the picture, so every cut lands on the same spot */
+const CITIES = [
+  { key: 'paris', en: 'PARIS', ja: 'パリ', co: 'FRANCE', ll: '48.86° N  2.29° E', an: [.31, .72], a: 8, b: 12 },
+  { key: 'london', en: 'LONDON', ja: 'ロンドン', co: 'UK', ll: '51.50° N  0.12° W', an: [.44, .77], a: 12, b: 16 },
+  { key: 'venice', en: 'VENICE', ja: 'ヴェネツィア', co: 'ITALY', ll: '45.44° N  12.33° E', an: [.45, .8], a: 16, b: 20 },
+  { key: 'santorini', en: 'SANTORINI', ja: 'サントリーニ', co: 'GREECE', ll: '36.46° N  25.38° E', an: [.41, .73], a: 20, b: 24 },
+  { key: 'cairo', en: 'GIZA', ja: 'ギザ', co: 'EGYPT', ll: '29.98° N  31.13° E', an: [.36, .83], a: 24, b: 26 },
+  { key: 'dubai', en: 'DUBAI', ja: 'ドバイ', co: 'UAE', ll: '25.20° N  55.27° E', an: [.38, .8], a: 26, b: 28 },
+  { key: 'cappadocia', en: 'CAPPADOCIA', ja: 'カッパドキア', co: 'TURKEY', ll: '38.64° N  34.83° E', an: [.36, .77], a: 28, b: 30 },
+  { key: 'kyoto', en: 'KYOTO', ja: '京都', co: 'JAPAN', ll: '34.99° N  135.78° E', an: [.39, .76], a: 30, b: 32 },
+  { key: 'hongkong', en: 'HONG KONG', ja: '香港', co: 'CHINA', ll: '22.32° N  114.17° E', an: [.41, .82], a: 32, b: 33 },
+  { key: 'newyork', en: 'NEW YORK', ja: 'ニューヨーク', co: 'USA', ll: '40.71° N  74.00° W', an: [.41, .83], a: 33, b: 34 },
+  { key: 'machupicchu', en: 'MACHU PICCHU', ja: 'マチュピチュ', co: 'PERU', ll: '13.16° S  72.55° W', an: [.41, .82], a: 34, b: 35 },
+  { key: 'iceland', en: 'ICELAND', ja: 'アイスランド', co: 'ICELAND', ll: '64.05° N  16.18° W', an: [.41, .8], a: 36, b: 44 },
+].map((c, i) => ({ ...c, i, t: B(c.a), e: B(c.b) }));
+const HOLD = [B(35), B(36)], EARTH = B(44), LOGO = B(52);
+const STAMP_COLS = ['#e0453a', '#2f5fd0', '#1f9a6a', '#8a4fd0'];
+const CUES = {
+  bpm: BPM, end: DUR, cuts: CITIES.map(c => c.t), stamps: CITIES.filter(c => c.b - c.a >= 2).map(c => c.t + B(c.b - c.a >= 4 ? 1 : .5)),
+  dive: B(7), hold: HOLD[0], drop: B(36), earth: EARTH, logo: LOGO, cta: LOGO + B(3), words: [B(1), B(4), B(37), B(39), B(45), B(47)]
+};
+window.CUES = CUES;
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+/* draw with the anchor point placed at screen (px, py), zoom z, clamped to cover */
+function place(g, im, ax, ay, z, px = 270, py = 735, free = false) {
+  const c = Math.max(LW / im.width, LH / im.height) * z, w = im.width * c, h = im.height * c;
+  let x = px - ax * w, y = py - ay * h;
+  if (!free) { x = clamp(x, LW - w, 0); y = clamp(y, LH - h, 0); }
+  g.drawImage(im, x, y, w, h);
+}
+function cityPic(g, c, t) {
+  const im = IM[c.key]; if (!im) return;
+  const u = t - c.t, k = seg(t, c.t, c.e), long = c.b - c.a >= 4;
+  const punch = 1 + .16 * Math.exp(-u * 11);
+  const z = lerp(1.14, long ? 1.24 : 1.2, k) * punch;
+  /* a quick smear right after the cut, alternating direction */
+  const sm_ = Math.exp(-u * 26), dir = c.i % 2 ? 1 : -1;
+  if (sm_ > .05) { g.save(); for (let s = 3; s >= 1; s--) { g.globalAlpha = .28; place(g, im, c.an[0] + dir * s * .025 * sm_, c.an[1], z); } g.restore(); }
+  place(g, im, c.an[0], c.an[1], z);
+}
+
+/* ================= overlays ================= */
+function shadowText(g, text, x, y, font, fill = '#fff', align = 'center', blur = 18) {
+  g.save(); g.font = font; g.textAlign = align; g.textBaseline = 'middle';
+  g.shadowColor = 'rgba(0,10,30,.55)'; g.shadowBlur = blur; g.shadowOffsetY = 3; g.fillStyle = fill; g.fillText(text, x, y); g.restore();
+}
+function popWords(g, text, x, y, px, t0, t, fill = '#fff') {
+  const k = seg(t, t0, t0 + .35); if (k <= 0) return;
+  const s = lerp(1.35, 1, outB(k));
+  g.save(); g.translate(x, y); g.scale(s, s); g.globalAlpha = clamp(k * 3);
+  g.font = jp(900, px); g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.shadowColor = 'rgba(0,10,30,.6)'; g.shadowBlur = 20; g.shadowOffsetY = 4;
+  g.fillStyle = fill; g.fillText(text, 0, 0); g.restore();
+}
+function cityLabel(g, c, t) {
+  const u = t - c.t, k = outC(seg(u, 0, .28)), out = 1 - seg(t, c.e - .06, c.e);
+  if (k <= 0 || out <= 0) return;
+  g.save(); g.globalAlpha = out;
+  const px = c.en.length > 9 ? 70 : 92;
+  g.save(); g.beginPath(); g.rect(0, 120, LW, 130); g.clip();
+  shadowText(g, c.en, 270, 190 + (1 - k) * 110, disp(px), '#fff');
+  g.restore();
+  const k2 = outC(seg(u, .08, .36));
+  g.globalAlpha = out * k2;
+  g.font = jp(900, 20); const wj = g.measureText(c.ja).width; g.font = disp(20); const wc = g.measureText(c.co).width, gap = 26, x0 = 270 - (wj + gap + wc) / 2;
+  shadowText(g, c.ja, x0, 262, jp(900, 20), '#fff', 'left', 12);
+  shadowText(g, c.co, x0 + wj + gap, 262, disp(20), '#fff', 'left', 12);
+  g.fillStyle = CORAL; g.beginPath(); g.arc(x0 + wj + gap / 2, 263, 3.5, 0, 7); g.fill();
+  shadowText(g, c.ll, 270, 290, disp(15), 'rgba(255,255,255,.85)', 'center', 10);
+  g.restore();
+}
+function routeBar(g, t) {
+  const x0 = 58, x1 = 482, y = 72, n = CITIES.length, xs = i => lerp(x0, x1, i / (n - 1));
+  let cur = -1; CITIES.forEach(c => { if (t >= c.t) cur = c.i; });
+  const a = t < B(7.5) ? seg(t, B(1), B(2)) : 1;
+  g.save(); g.globalAlpha = a * (1 - seg(t, EARTH - .3, EARTH));
+  g.shadowColor = 'rgba(0,10,30,.45)'; g.shadowBlur = 8;
+  g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2; g.setLineDash([3, 6]); g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]);
+  if (cur >= 0) { g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(x0, y); g.lineTo(planeX(t, xs), y); g.stroke(); }
+  for (let i = 0; i < n; i++) {
+    const on = i <= cur, r = on ? 5 : 3.5;
+    g.fillStyle = on ? (i === cur ? CORAL : '#fff') : 'rgba(255,255,255,.6)'; g.beginPath(); g.arc(xs(i), y, r, 0, 7); g.fill();
+  }
+  plane(g, planeX(t, xs), y - 16, 1);
+  g.font = disp(12); g.fillStyle = 'rgba(255,255,255,.9)'; g.textAlign = 'left'; g.textBaseline = 'middle';
+  g.fillText('AI CHALLENGE 365', x0 - 6, y + 22);
+  g.textAlign = 'right'; g.fillText(`${String(Math.max(0, cur + 1)).padStart(2, '0')} / 12 CITIES`, x1 + 6, y + 22);
+  g.restore();
+}
+/* the plane glides to the next dot during the half beat before each cut */
+function planeX(t, xs) {
+  let x = xs(0) - 30;
+  for (const c of CITIES) { const k = inOut(seg(t, c.t - B(.5), c.t)); if (k > 0) x = lerp(c.i ? xs(c.i - 1) : xs(0) - 30, xs(c.i), k); }
+  return x;
+}
+function plane(g, x, y, s) {
+  g.save(); g.translate(x, y); g.scale(s, s); g.fillStyle = '#fff';
+  g.beginPath();
+  g.moveTo(11, 0); g.lineTo(-9, -2); g.lineTo(-12, -7); g.lineTo(-14, -7); g.lineTo(-12, -1.5); g.lineTo(-13, -1.5);
+  g.lineTo(-13, 1.5); g.lineTo(-12, 1.5); g.lineTo(-14, 7); g.lineTo(-12, 7); g.lineTo(-9, 2); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(2, -1.5); g.lineTo(-4, -11); g.lineTo(-7, -11); g.lineTo(-3, -1.5); g.moveTo(2, 1.5); g.lineTo(-4, 11); g.lineTo(-7, 11); g.lineTo(-3, 1.5); g.fill();
+  g.restore();
+}
+/* a passport stamp thumped onto the lower left */
+function stamp(g, c, t) {
+  if (c.b - c.a < 2) return;
+  const t0 = c.t + B(c.b - c.a >= 4 ? 1 : .5), u = t - t0; if (u < 0 || t >= c.e) return;
+  const k = seg(u, 0, .12), s = lerp(1.9, 1, outC(k)), col = STAMP_COLS[c.i % 4];
+  g.save(); g.translate(112, 842); g.rotate(-.22 + (hash(c.i) - .5) * .2); g.scale(s, s); g.globalAlpha = clamp(k * 2) * .92;
+  g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 6;
+  g.strokeStyle = col; g.fillStyle = 'rgba(255,255,255,.82)'; g.lineWidth = 4;
+  g.beginPath(); g.arc(0, 0, 64, 0, 7); g.fill(); g.stroke(); g.shadowBlur = 0;
+  g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, 55, 0, 7); g.stroke();
+  g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = disp(c.en.length > 8 ? 17 : 22); g.fillText(c.en, 0, -6);
+  g.font = disp(11); g.fillText(`No.${String(c.i + 1).padStart(2, '0')}  ${c.co}`, 0, 18);
+  g.font = disp(10); g.fillText('★ ARRIVED ★', 0, -34);
+  g.restore();
+}
+
+/* ================= scenes ================= */
+function windowScene(g, t) {
+  const im = IM.window; if (!im) return;
+  /* slow push, then a dive through the window on beat 7 */
+  const dive = Math.pow(seg(t, B(7), B(8)), 2.2);
+  const z = lerp(1.0, 1.1, seg(t, 0, B(7))) * (1 + dive * 5);
+  place(g, im, .5, .52, z, 270, 480 * 1 + 20 * dive);
+  if (dive > 0) { g.fillStyle = `rgba(255,248,235,${Math.pow(dive, 1.5)})`; g.fillRect(0, 0, LW, LH); }
+  const o = 1 - seg(t, B(6.6), B(7.2));
+  if (o > 0) {
+    g.save(); g.globalAlpha = o;
+    popWords(g, 'パスポートなしで、', 270, 330, 38, B(1), t);
+    popWords(g, '世界一周してきた。', 270, 395, 44, B(4), t, '#fff3c8');
+    g.restore();
+  }
+}
+function holdScene(g, t) {
+  g.fillStyle = '#081222'; g.fillRect(0, 0, LW, LH);
+  const k = seg(t, HOLD[0], HOLD[0] + .2);
+  g.save(); g.globalAlpha = k; shadowText(g, 'LAST STOP …', 270, 470, disp(34), '#fff'); g.restore();
+}
+function icelandText(g, t) {
+  const o = 1 - seg(t, EARTH - .35, EARTH - .05);
+  if (o <= 0) return;
+  g.save(); g.globalAlpha = o;
+  popWords(g, 'この景色、ぜんぶ', 270, 450, 38, B(37), t);
+  popWords(g, 'AIで作った。', 270, 520, 58, B(39), t, '#b8ffd9');
+  g.restore();
+}
+function stars(g, t, a) {
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 40; i++) { const x = hash(i * 3.1) * LW, y = hash(i * 7.7) * 420, tw = .5 + .5 * Math.sin(t * (2 + hash(i) * 4) + i * 3); g.fillStyle = `rgba(255,255,255,${a * tw * .9})`; g.fillRect(x, y, 1.6, 1.6); }
+  g.restore();
+}
+function earthScene(g, t) {
+  const im = IM.earth; if (!im) return;
+  const k = seg(t, EARTH, DUR);
+  place(g, im, .5, .6, lerp(1.28, 1.0, outC(k)), 270, 576);
+  stars(g, t, .8);
+  const o = 1 - seg(t, LOGO - .5, LOGO - .1);
+  if (o > 0) { g.save(); g.globalAlpha = o; popWords(g, '行けない場所は、', 270, 250, 38, B(45), t); popWords(g, 'もうない。', 270, 318, 60, B(47), t, '#ffd9a8'); g.restore(); }
+  if (t >= LOGO) {
+    const u = t - LOGO, a = sm(seg(u, 0, .6)), s = lerp(1.25, 1, outC(seg(u, 0, .5)));
+    g.save(); g.globalAlpha = a; g.translate(270, 262); g.scale(s, s);
+    shadowText(g, 'AI CHALLENGE 365', 0, -58, disp(18), 'rgba(255,255,255,.85)', 'center', 10);
+    g.shadowColor = 'rgba(120,180,255,.8)'; g.shadowBlur = 30; g.font = jp(900, 50); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('AIチャレンジ365', 0, 0);
+    g.restore();
+    const t2 = seg(u, .5, 1.1);
+    g.save(); g.globalAlpha = t2; shadowText(g, '12 CITIES   /   0 PASSPORTS', 270, 322, disp(16), '#ffd9a8', 'center', 8); g.restore();
+    const ck = seg(t, CUES.cta, CUES.cta + .35);
+    if (ck > 0) {
+      const s2 = lerp(1.3, 1, outB(ck));
+      g.save(); g.translate(270, 404); g.scale(s2, s2); g.globalAlpha = clamp(ck * 3);
+      g.fillStyle = CORAL; g.shadowColor = 'rgba(0,0,0,.4)'; g.shadowBlur = 16; g.beginPath(); g.roundRect(-170, -30, 340, 60, 30); g.fill(); g.shadowBlur = 0;
+      g.fillStyle = '#fff'; g.font = jp(900, 22); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('プロフィールのリンクから ✈', 0, 1);
+      g.restore();
+    }
+  }
+}
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  if (t < B(8)) windowScene(g, t);
+  else if (t >= HOLD[0] && t < HOLD[1]) holdScene(g, t);
+  else if (t >= EARTH) {
+    /* tilt up out of the aurora into space */
+    const k = seg(t, EARTH, EARTH + .7);
+    if (k < 1) { const c = CITIES[11]; g.save(); g.translate(0, 700 * inOut(k)); cityPic(g, c, t); g.restore(); g.save(); g.globalAlpha = sm(k); g.translate(0, -300 * (1 - inOut(k))); earthScene(g, t); g.restore(); }
+    else earthScene(g, t);
+  } else {
+    const c = CITIES.filter(c => t >= c.t).pop();
+    cityPic(g, c, t);
+    const top = g.createLinearGradient(0, 0, 0, 330); top.addColorStop(0, 'rgba(5,15,35,.45)'); top.addColorStop(1, 'rgba(5,15,35,0)'); g.fillStyle = top; g.fillRect(0, 0, LW, 330);
+    if (c.key === 'iceland') { stars(g, t, .6); icelandText(g, t); }
+    cityLabel(g, c, t);
+    stamp(g, c, t);
+  }
+  if (t < EARTH) routeBar(g, t);
+  /* a flash on each cut, bigger on the drop */
+  let fl = 0;
+  for (const c of CUES.cuts) { const v = t - c; if (v >= 0 && v < .16) fl = Math.max(fl, (c === CUES.drop ? .9 : .5) * (1 - v / .16)); }
+  if (fl > 0) { g.fillStyle = `rgba(255,255,255,${fl})`; g.fillRect(0, 0, LW, LH); }
+}
+
+/* ================= frame ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+let S = 1;
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  cv.width = w; cv.height = Math.round(w * 16 / 9); S = w / LW;
+  render(T);
+}
+let T = 0;
+function render(t) {
+  T = t; if (!cv.width || !IM.paris) return;
+  scene(ctx, t);
+  const W = cv.width, H = cv.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.35)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  const bl = Math.max(1 - seg(t, 0, .35), seg(t, DUR - .4, DUR)); if (bl > 0) { ctx.fillStyle = `rgba(0,0,0,${bl})`; ctx.fillRect(0, 0, W, H); }
+  updateUi();
+}
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const LIST = [[0, '✈', '出発'], ...CITIES.map(c => [c.t, String(c.i + 1).padStart(2, '0'), c.ja]), [EARTH, '🌏', '地球']];
+$('route').innerHTML = LIST.map(([t, n, d]) => `<li><button data-t="${t}"><span class="n">${n}</span><span>${d}</span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = 0; LIST.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#route li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#route button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + .45); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), document.fonts.load(disp(90), 'PARIS0123'), document.fonts.load(jp(900, 40), 'パスポートなしで、世界一周AIチャレンジ365')]).catch(() => {}).then(() => {
+  resize(); render(B(9)); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

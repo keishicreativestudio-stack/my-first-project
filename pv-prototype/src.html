@@ -277,6 +277,7 @@ function scene(g, w, h, s) {
 }
 const MARK_NAMES = ['HANA', 'SORA', 'MORI', 'TSUKI', 'KUMO'];
 function logoWork(g, w, h, s) {
+  if (IMG.logos.length) { drawCover(g, IMG.logos[s % IMG.logos.length], 0, 0, w, h); return; }
   const pal = [['#111', '#f2f2ee'], ['#f2f2ee', '#111'], ['#ff5a3c', '#fff'], ['#0e7c66', '#f4efe2'], ['#1f3cff', '#fff']][s % 5];
   g.fillStyle = pal[0]; g.fillRect(0, 0, w, h);
   g.fillStyle = pal[1]; g.strokeStyle = pal[1];

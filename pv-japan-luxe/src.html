@@ -1,0 +1,340 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 Luxe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Shippori+Mincho:wght@500;700&display=swap">
+<style>
+/* Layout: the 9:16 player in a thin gold frame beside a numbered catalogue of scenes; black and gold only; stacks on phones. */
+:root {
+  --black: #0a0908;
+  --panel: #13110e;
+  --line: #3a3124;
+  --ivory: #efe6d2;
+  --muted: #9a8c73;
+  --gold: #cfae66;
+  --serif: "Cormorant Garamond", "Shippori Mincho", serif;
+  --mincho: "Shippori Mincho", "Hiragino Mincho ProN", serif;
+  color-scheme: dark;
+}
+html, body { background: var(--black); color: var(--ivory); }
+body { font-family: var(--mincho); padding-inline: 16px; padding-block: 28px 48px; line-height: 1.8; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 40px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; outline: 1px solid var(--line); outline-offset: 6px; }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 20px; min-width: 0; }
+.eyebrow { font: 600 12px var(--serif); letter-spacing: .45em; color: var(--gold); }
+h1 { font: 400 52px/1.05 var(--serif); margin: 8px 0; letter-spacing: .04em; }
+h1 i { color: var(--gold); }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 42ch; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button { font: 500 13px var(--mincho); color: var(--ivory); background: transparent; border: 1px solid var(--line); border-radius: 0; padding: 7px 18px; cursor: pointer; letter-spacing: .08em; }
+button:hover { border-color: var(--gold); }
+button.primary { border-color: var(--gold); color: var(--gold); min-width: 96px; }
+button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outline-offset: 3px; }
+.tc { font: 400 15px var(--serif); font-variant-numeric: tabular-nums; letter-spacing: .05em; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--gold); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+ol.cat { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+ol.cat li { border-bottom: 1px solid var(--line); }
+ol.cat button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 64px 40px 1fr; gap: 10px; padding: 8px 4px; cursor: pointer; align-items: baseline; }
+ol.cat button:focus-visible { outline: 1px solid var(--gold); }
+ol.cat .n { font: 400 15px var(--serif); color: var(--muted); }
+ol.cat .k { color: var(--gold); font-size: 17px; }
+ol.cat .e { font: italic 400 15px var(--serif); color: var(--muted); }
+ol.cat li.on .n, ol.cat li.on .e { color: var(--ivory); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 Luxe"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AI CHALLENGE 365 · 30 SEC · 72 BPM</div>
+      <h1>The Art of <i>One</i> a Day</h1>
+      <p class="lede">黒と金だけで、ゆっくり、静かに見せる30秒。金の細い線が画面をなで、文字には箔押しのような光が走ります。時計の秒針のような音が、一日一日を刻みます。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ol class="cat" id="cat"></ol>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 72, BEAT = 60 / BPM;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const sm = k => k * k * (3 - 2 * k);
+const outC = k => 1 - Math.pow(1 - k, 3);
+const outQ = k => 1 - Math.pow(1 - k, 5);
+const inOut = k => -(Math.cos(Math.PI * k) - 1) / 2;
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const serif = (w, px, it = false) => `${it ? 'italic ' : ''}${w} ${px}px "Cormorant Garamond", "Shippori Mincho", serif`;
+const mincho = (w, px) => `${w} ${px}px "Shippori Mincho", "Hiragino Mincho ProN", serif`;
+const IVORY = '#efe6d2';
+const B = x => x * BEAT;
+const INSET = 22;
+
+/* ================= scenes (in beats) ================= */
+const SHOTS = [
+  { a: 0, b: 5, key: null },
+  { a: 5, b: 10, key: 'koi', from: [.5, .42, 1.12], to: [.5, .5, 1.3], line: ['静かに、', '輝く。'] },
+  { a: 10, b: 14, key: 'matcha', from: [.56, .46, 1.55], to: [.58, .48, 1.35], no: '042', kanji: '茶', en: 'The way of tea' },
+  { a: 14, b: 18, key: 'sushi', from: [.34, .5, 1.25], to: [.6, .5, 1.25], no: '118', kanji: '鮨', en: 'The hand of the chef' },
+  { a: 18, b: 22, key: 'indigo', from: [.58, .35, 1.3], to: [.55, .45, 1.12], no: '203', kanji: '藍', en: 'Dyed by hand' },
+  { a: 22, b: 26, key: 'samurai', from: [.32, .42, 1.55], to: [.33, .45, 1.3], no: '287', kanji: '武', en: 'The way of the warrior' },
+  { a: 26, b: 30.5, key: 'onsen', from: [.5, .55, 1.25], to: [.5, .5, 1.0], line: ['一日ひとつ。', '妥協なく。'] },
+].map(s => ({ ...s, t: B(s.a), e: B(s.b) }));
+const LOGO = B(30.5);
+const WIPE = .95;
+const CUES = { bpm: BPM, end: DUR, cuts: SHOTS.slice(1).map(s => s.t), logo: LOGO, words: [], cta: LOGO + 2.6, name: LOGO + .5 };
+SHOTS.forEach(s => { if (s.kanji) CUES.words.push(s.t + .9); if (s.line) CUES.words.push(s.t + .8); });
+CUES.words.unshift(1.9);
+window.CUES = CUES;
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+function shotPic(g, s, t) {
+  const im = IM[s.key]; if (!im) return;
+  const k = inOut(clamp((t - s.t + .5) / (s.e - s.t + 1.5)));
+  const z = lerp(s.from[2], s.to[2], k), cx = lerp(s.from[0], s.to[0], k), cy = lerp(s.from[1], s.to[1], k);
+  const c = Math.max(LW / im.width, LH / im.height) * z, w = im.width * c, h = im.height * c;
+  g.drawImage(im, clamp(LW / 2 - cx * w, LW - w, 0), clamp(LH / 2 - cy * h, LH - h, 0), w, h);
+}
+
+/* ================= gold ================= */
+/* a foil gradient across [x0, x1] with a bright band that sweeps once from p = 0 to 1 */
+function foil(g, x0, x1, p) {
+  const gr = g.createLinearGradient(x0, 0, x1, 0);
+  gr.addColorStop(0, '#a88444'); gr.addColorStop(.3, '#e6c784'); gr.addColorStop(.6, '#c49d56'); gr.addColorStop(1, '#f0d494');
+  const g2 = g.createLinearGradient(x0 - 200, 0, x1 + 200, 0);
+  const c = clamp(p, -.2, 1.2), band = .08;
+  g2.addColorStop(0, 'rgba(255,244,210,0)');
+  if (c - band > 0 && c - band < 1) g2.addColorStop(c - band, 'rgba(255,244,210,0)');
+  if (c > 0 && c < 1) g2.addColorStop(c, 'rgba(255,244,210,1)');
+  if (c + band > 0 && c + band < 1) g2.addColorStop(c + band, 'rgba(255,244,210,0)');
+  g2.addColorStop(1, 'rgba(255,244,210,0)');
+  return [gr, g2];
+}
+function goldText(g, text, x, y, font, t0, t, { align = 'center', spacing = 0, alpha = 1, sweep = 1.6 } = {}) {
+  g.save(); g.font = font; g.textAlign = align; g.textBaseline = 'middle';
+  if (spacing) g.letterSpacing = spacing + 'px';
+  const w = g.measureText(text).width, x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  const [base, shine] = foil(g, x0, x0 + w, (t - t0) / sweep);
+  g.globalAlpha = alpha; g.shadowColor = 'rgba(0,0,0,.7)'; g.shadowBlur = 16;
+  g.fillStyle = base; g.fillText(text, x, y); g.shadowBlur = 0;
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = alpha * .9; g.fillStyle = shine; g.fillText(text, x, y);
+  g.restore();
+}
+/* text rising out of a mask line, the way luxury titles are set */
+function rise(g, draw, x, y, h, t0, t, dur = 1.1) {
+  const k = outQ(seg(t, t0, t0 + dur)); if (k <= 0) return;
+  g.save(); g.beginPath(); g.rect(0, y - h, LW, h * 2); g.clip(); g.translate(0, (1 - k) * h); g.globalAlpha = k; draw(); g.restore();
+}
+function hairline(g, cx, y, halfW, k, a = 1) {
+  if (k <= 0) return;
+  const w = halfW * outQ(k), gr = g.createLinearGradient(cx - w, 0, cx + w, 0);
+  gr.addColorStop(0, 'rgba(207,174,102,0)'); gr.addColorStop(.5, `rgba(233,205,140,${a})`); gr.addColorStop(1, 'rgba(207,174,102,0)');
+  g.fillStyle = gr; g.fillRect(cx - w, y - .5, w * 2, 1);
+}
+function motes(g, t, a = 1) {
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 46; i++) {
+    const h = k => hash(i * 9.1 + k), sp = 8 + h(1) * 18;
+    const x = (h(2) * LW + Math.sin(t * .4 + i) * 20 + t * (h(3) - .5) * 10 + LW) % LW, y = (h(4) * LH - t * sp + LH * 4) % LH;
+    const r = .6 + h(5) * 2.2, tw = .5 + .5 * Math.sin(t * (1 + h(6) * 2) + i);
+    const gr = g.createRadialGradient(x, y, 0, x, y, r * 4); gr.addColorStop(0, `rgba(255,220,150,${.55 * a * tw})`); gr.addColorStop(1, 'rgba(255,200,120,0)');
+    g.fillStyle = gr; g.fillRect(x - r * 4, y - r * 4, r * 8, r * 8);
+  }
+  g.restore();
+}
+
+/* ================= scene pieces ================= */
+function frame(g, t) {
+  /* thin gold inner border with small corner marks; draws itself in at the start */
+  const k = outQ(seg(t, .2, 2.2)), a = .55;
+  g.save(); g.strokeStyle = `rgba(207,174,102,${a})`; g.lineWidth = 1;
+  const W = LW - INSET * 2, H = LH - INSET * 2;
+  g.beginPath();
+  g.moveTo(LW / 2 - W / 2 * k, INSET); g.lineTo(LW / 2 + W / 2 * k, INSET);
+  g.moveTo(LW / 2 - W / 2 * k, LH - INSET); g.lineTo(LW / 2 + W / 2 * k, LH - INSET);
+  g.moveTo(INSET, LH / 2 - H / 2 * k); g.lineTo(INSET, LH / 2 + H / 2 * k);
+  g.moveTo(LW - INSET, LH / 2 - H / 2 * k); g.lineTo(LW - INSET, LH / 2 + H / 2 * k);
+  g.stroke();
+  g.strokeStyle = `rgba(233,205,140,${.9 * k})`; g.lineWidth = 1.5;
+  for (const [x, y, sx, sy] of [[INSET, INSET, 1, 1], [LW - INSET, INSET, -1, 1], [INSET, LH - INSET, 1, -1], [LW - INSET, LH - INSET, -1, -1]]) {
+    g.beginPath(); g.moveTo(x + sx * 6, y + sy * 26); g.lineTo(x + sx * 6, y + sy * 6); g.lineTo(x + sx * 26, y + sy * 6); g.stroke();
+  }
+  g.restore();
+  if (t < LOGO) {
+    g.save(); g.font = serif(600, 11); g.letterSpacing = '5px'; g.fillStyle = `rgba(207,174,102,${.8 * k})`; g.textBaseline = 'middle';
+    g.textAlign = 'center'; g.fillText('AI CHALLENGE 365', LW / 2, INSET + 22); g.restore();
+  }
+}
+function intro(g, t) {
+  g.fillStyle = '#060504'; g.fillRect(0, 0, LW, LH);
+  const glow = g.createRadialGradient(270, 470, 0, 270, 470, 420); glow.addColorStop(0, 'rgba(120,90,40,.28)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, LW, LH);
+  hairline(g, 270, 480, 200, seg(t, .5, 1.9));
+  rise(g, () => goldText(g, 'THE ART OF ONE A DAY', 270, 440, serif(600, 15), 1.1, t, { spacing: 6 }), 270, 440, 20, 1.0, t);
+  rise(g, () => goldText(g, '本物は、', 270, 540, mincho(500, 50), 2.2, t, { spacing: 8 }), 270, 540, 40, 1.9, t, 1.3);
+}
+function shotText(g, s, t) {
+  const out = 1 - sm(seg(t, s.e - .6, s.e - .1));
+  if (out <= 0) return;
+  g.save(); g.globalAlpha = out;
+  if (s.line) {
+    const sh = g.createLinearGradient(0, 520, 0, LH); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(.35, 'rgba(0,0,0,.62)'); sh.addColorStop(1, 'rgba(0,0,0,.85)'); g.fillStyle = sh; g.fillRect(0, 520, LW, LH - 520);
+    hairline(g, 270, 670, 70, seg(t, s.t + .5, s.t + 1.5), .9);
+    s.line.forEach((ln, i) => rise(g, () => goldText(g, ln, 270, 730 + i * 62, mincho(500, 40), s.t + 1.2 + i * .5, t, { spacing: 6 }), 270, 730 + i * 62, 36, s.t + .8 + i * .55, t, 1.2));
+  }
+  if (s.kanji) {
+    const sh = g.createLinearGradient(0, 520, 0, LH); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.8)'); g.fillStyle = sh; g.fillRect(0, 520, LW, LH - 520);
+    const x = 58;
+    rise(g, () => goldText(g, `No. ${s.no}`, x, 690, serif(400, 22), s.t + 1.1, t, { align: 'left', spacing: 3 }), x, 690, 16, s.t + .7, t, 1);
+    rise(g, () => goldText(g, s.kanji, x - 4, 772, mincho(700, 96), s.t + 1.3, t, { align: 'left' }), x, 772, 60, s.t + .9, t, 1.3);
+    hairline(g, x + 110, 846, 110, seg(t, s.t + 1.2, s.t + 2.2), .8);
+    rise(g, () => { g.font = serif(400, 22, true); g.fillStyle = 'rgba(239,230,210,.85)'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(s.en, x, 876); }, x, 876, 16, s.t + 1.4, t, 1.1);
+  }
+  g.restore();
+}
+function drawShot(g, s, t) {
+  if (!s.key) { intro(g, t); return; }
+  shotPic(g, s, t);
+  const vg = g.createRadialGradient(270, 440, 180, 270, 480, 720); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.72)'); g.fillStyle = vg; g.fillRect(0, 0, LW, LH);
+  shotText(g, s, t);
+}
+function logo(g, t) {
+  const u = t - LOGO;
+  g.fillStyle = '#060504'; g.fillRect(0, 0, LW, LH);
+  const glow = g.createRadialGradient(270, 480, 0, 270, 480, 460); glow.addColorStop(0, `rgba(130,98,44,${.32 * sm(seg(u, 0, 1.5))})`); glow.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, LW, LH);
+  /* a gold box draws itself around the name */
+  const k = outQ(seg(u, .1, 1.6)), bw = 400, bh = 190, x0 = 270 - bw / 2, y0 = 480 - bh / 2;
+  g.save(); g.strokeStyle = 'rgba(207,174,102,.75)'; g.lineWidth = 1; g.beginPath();
+  g.moveTo(270, y0); g.lineTo(270 - bw / 2 * k, y0); g.moveTo(270, y0); g.lineTo(270 + bw / 2 * k, y0);
+  g.moveTo(270, y0 + bh); g.lineTo(270 - bw / 2 * k, y0 + bh); g.moveTo(270, y0 + bh); g.lineTo(270 + bw / 2 * k, y0 + bh);
+  const kv = outQ(seg(u, .9, 1.8));
+  g.moveTo(x0, y0); g.lineTo(x0, y0 + bh * kv); g.moveTo(x0 + bw, y0 + bh); g.lineTo(x0 + bw, y0 + bh * (1 - kv));
+  g.stroke(); g.restore();
+  rise(g, () => goldText(g, 'AIチャレンジ365', 270, 470, mincho(700, 44), LOGO + 1.0, t, { spacing: 3, sweep: 1.8 }), 270, 470, 40, LOGO + .5, t, 1.4);
+  rise(g, () => goldText(g, 'THE ART OF ONE A DAY', 270, 530, serif(600, 13), LOGO + 1.6, t, { spacing: 6 }), 270, 530, 16, LOGO + 1.2, t, 1.2);
+  const ck = sm(seg(t, CUES.cta, CUES.cta + 1));
+  g.save(); g.globalAlpha = ck; g.font = mincho(500, 17); g.letterSpacing = '4px'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(239,230,210,.85)';
+  g.fillText('プロフィールのリンクから', 270, 660); g.restore();
+  hairline(g, 270, 690, 60, seg(t, CUES.cta + .3, CUES.cta + 1.3), .8);
+}
+/* the gold line wipe: a hairline travels down; above it, the new scene */
+function lineWipe(g, drawOld, drawNew, k) {
+  const y = lerp(-10, LH + 10, inOut(k));
+  drawOld(g);
+  g.save(); g.beginPath(); g.rect(0, 0, LW, y); g.clip(); drawNew(g); g.restore();
+  g.save(); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, y, LW, 60 * (1 - Math.abs(k - .5) * 2)); g.restore();
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const gr = g.createLinearGradient(0, y - 14, 0, y + 14); gr.addColorStop(0, 'rgba(255,210,130,0)'); gr.addColorStop(.5, 'rgba(255,220,150,.55)'); gr.addColorStop(1, 'rgba(255,210,130,0)');
+  g.fillStyle = gr; g.fillRect(0, y - 14, LW, 28); g.fillStyle = 'rgba(255,240,200,.95)'; g.fillRect(0, y - .6, LW, 1.2);
+  g.restore();
+}
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  if (t >= LOGO) {
+    const k = seg(t, LOGO - .2, LOGO + 1.0);
+    if (k < 1) { drawShot(g, SHOTS[SHOTS.length - 1], t); g.fillStyle = `rgba(6,5,4,${sm(k)})`; g.fillRect(0, 0, LW, LH); if (k > .5) { g.globalAlpha = sm((k - .5) * 2); logo(g, t); g.globalAlpha = 1; } }
+    else logo(g, t);
+  } else {
+    const i = SHOTS.findIndex(s => t >= s.t && t < s.e), s = SHOTS[i];
+    const k = seg(t, s.t - WIPE / 2, s.t + WIPE / 2);
+    const nx = SHOTS[i + 1], kn = nx ? seg(t, nx.t - WIPE / 2, nx.t + WIPE / 2) : 0;
+    if (kn > 0) lineWipe(g, gg => drawShot(gg, s, t), gg => drawShot(gg, nx, t), kn);
+    else if (i > 0 && k < 1 && k >= .5) lineWipe(g, gg => drawShot(gg, SHOTS[i - 1], t), gg => drawShot(gg, s, t), k);
+    else drawShot(g, s, t);
+  }
+  motes(g, t, t < B(5) ? .9 : .5);
+  frame(g, t);
+}
+
+/* ================= frame ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+let S = 1, grains = [];
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  cv.width = w; cv.height = Math.round(w * 16 / 9); S = w / LW;
+  grains = [0, 1, 2, 3].map(k => { const c = document.createElement('canvas'); c.width = c.height = 160; const g = c.getContext('2d'), im = g.createImageData(160, 160); for (let i = 0; i < im.data.length; i += 4) { const v = hash(i * .51 + k * 17) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; } g.putImageData(im, 0, 0); return c; });
+  render(T);
+}
+let T = 0;
+function render(t) {
+  T = t; if (!cv.width || !grains.length || !IM.koi) return;
+  scene(ctx, t);
+  const W = cv.width, H = cv.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .07; ctx.fillStyle = ctx.createPattern(grains[frameOf(t) % 4], 'repeat'); ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  const bl = Math.max(1 - seg(t, 0, .6), seg(t, DUR - .6, DUR)); if (bl > 0) { ctx.fillStyle = `rgba(0,0,0,${bl})`; ctx.fillRect(0, 0, W, H); }
+  updateUi();
+}
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const LIST = [[0, 'I', '', 'Prologue'], ...SHOTS.slice(1).map((s, i) => [s.t, ['II', 'III', 'IV', 'V', 'VI', 'VII'][i], s.kanji || '', s.en || s.line.join('')]), [LOGO, 'VIII', '', 'AIチャレンジ365']];
+$('cat').innerHTML = LIST.map(([t, n, k, e]) => `<li><button data-t="${t}"><span class="n">${n}</span><span class="k">${k}</span><span class="e">${e}</span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = 0; LIST.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#cat li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#cat button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + 2); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), document.fonts.load(mincho(700, 44), 'AIチャレンジ365茶'), document.fonts.load(mincho(500, 40), '本物は、静かに'), document.fonts.load(serif(600, 15), 'THE ART'), document.fonts.load(serif(400, 22, true), 'The way')]).catch(() => {}).then(() => {
+  resize(); render(B(12)); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

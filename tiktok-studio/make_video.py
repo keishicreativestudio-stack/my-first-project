@@ -208,17 +208,36 @@ class Scene:
     """1シーン分の画面。背景(＋画像/録画) と テロップ層 を分けて持つ。"""
 
     def __init__(self, spec, cfg, fonts, theme, index, total):
-        self.spec = spec
         self.theme = theme
         self.style = spec.get("style", "normal")
         self.has_media = bool(spec.get("clip") or spec.get("image"))
         self.base_dir = cfg["_dir"]
+        # 画面録画・画像がまだ無いときは「ここに入ります」の仮の枠で仕上がりを確認できるようにする
+        media = spec.get("clip") or spec.get("image")
+        missing = media and not self.path(media).exists()
+        if missing:
+            print(f"  ※ {media} が見つからないので仮の枠で作ります")
+            spec = {k: v for k, v in spec.items() if k not in ("clip", "image")}
+            spec.setdefault("duration", 3.0)
+        self.spec = spec
         self.text_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         self.static = Image.new("RGBA", (W, H), (0, 0, 0, 0))   # アニメーションしない装飾
         self._draw_text(fonts, cfg, index, total)
         self.image = None
-        if spec.get("image"):
+        if missing:
+            self.image = self._placeholder(fonts, media)
+        elif spec.get("image"):
             self.image = self._load_image(spec["image"])
+
+    def _placeholder(self, fonts, name):
+        bw, bh = self.media_size()
+        img = Image.new("RGB", (bw, bh - 200), self.theme["panel"])
+        d = ImageDraw.Draw(img)
+        d.text((bw // 2, img.height // 2 - 40), "ここに画面録画", font=fonts.get(64),
+               fill=self.theme["panel_text"], anchor="mm")
+        d.text((bw // 2, img.height // 2 + 50), Path(name).name, font=fonts.get(40),
+               fill=self.theme["panel_text"], anchor="mm")
+        return img
 
     def path(self, p):
         p = Path(p)

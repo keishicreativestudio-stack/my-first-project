@@ -1,0 +1,13 @@
+{
+  "handle": "@aichallenge365",
+  "series": "AIチャレンジ Day1",
+  "theme": "dark",
+  "scenes": [
+    {"style": "hook", "text": "AIに\n「**ゲーム作って**」\nって言っただけの結果…"},
+    {"label": "AIへの指示はこれだけ", "code": "スマホでも遊べる落ちものパズルゲームを、\nHTMLファイル1つで作って。\nスコアとゲームオーバー画面も付けて。", "text": ""},
+    {"text": "AIがコードを書いていく\n（**8倍速**）", "clip": "rec/1001_build.mp4", "clip_speed": 8, "clip_max": 5},
+    {"text": "完成したので\n**実際に遊んでみる**", "clip": "rec/1001_play.mp4", "clip_max": 6},
+    {"text": "かかった時間は\n**たったの◯分**\nコードは1行も書いてない"},
+    {"style": "cta", "text": "次は何を作らせる？\n**コメントで募集中**"}
+  ]
+}

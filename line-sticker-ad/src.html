@@ -1,0 +1,431 @@
+<title>せっかちな豆柴 広告動画</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+/* Layout: the 9:16 player beside a short storyboard list; stacks on phones. Single committed warm look taken from the stickers. */
+:root {
+  --cream: #fbf4e8;
+  --paper: #fffaf2;
+  --brown: #4a2f22;
+  --brown-2: #8a6a58;
+  --shiba: #f08a24;
+  --shiba-soft: #fde2c4;
+  --line: #ead9c4;
+  --round: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", system-ui, sans-serif;
+  color-scheme: light;
+}
+html, body { background: var(--cream); color: var(--brown); }
+body { font-family: var(--round); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.7; }
+.wrap { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: var(--paper); justify-self: center; border-radius: 22px; overflow: hidden; box-shadow: 0 20px 44px -20px rgba(74, 47, 34, .45); }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.tag { display: inline-block; font-weight: 700; font-size: 12px; color: #fff; background: var(--shiba); border-radius: 999px; padding: 2px 12px; }
+h1 { font-weight: 900; font-size: 26px; line-height: 1.35; margin: 8px 0 4px; text-wrap: balance; }
+.lede { margin: 0; color: var(--brown-2); font-size: 14px; max-width: 40ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 700 13px var(--round); color: var(--brown); background: var(--paper); border: 2px solid var(--line); border-radius: 999px; padding: 6px 16px; cursor: pointer; }
+button:hover { border-color: var(--shiba); }
+button.primary { background: var(--shiba); border-color: var(--shiba); color: #fff; min-width: 96px; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--shiba-soft); outline-offset: 2px; }
+.tc { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+.tc small { color: var(--brown-2); font-weight: 500; }
+input[type=range] { width: 100%; accent-color: var(--shiba); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--brown-2); }
+ol.board { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+ol.board button { width: 100%; text-align: left; display: grid; grid-template-columns: 52px 1fr; gap: 10px; border-radius: 14px; padding: 8px 12px; font-weight: 500; }
+ol.board .t { font-weight: 900; color: var(--shiba); font-variant-numeric: tabular-nums; }
+ol.board b { display: block; font-weight: 900; }
+ol.board span.d { font-size: 12px; color: var(--brown-2); }
+ol.board li.on button { border-color: var(--shiba); background: var(--shiba-soft); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="せっかちな豆柴の動く日常スタンプ 広告動画"></canvas></div>
+  <div class="side">
+    <div>
+      <span class="tag">LINEスタンプ 広告 · 15秒</span>
+      <h1>せっかちな豆柴の<br>動く日常スタンプ</h1>
+      <p class="lede">返信が、はやすぎる豆柴。朝から夜までのトークで、16種類の動くスタンプを見せる15秒の縦型動画です。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">🔊 音あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="15" step="0.001" value="0" aria-label="再生位置">
+    <ol class="board" id="board"></ol>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 15, FPS = 30, LW = 540, LH = 960;
+const BPM = 128, BEAT = 60 / BPM, BAR = BEAT * 4;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outCubic: k => 1 - Math.pow(1 - k, 3),
+  inCubic: k => k * k * k,
+  inOutCubic: k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
+  outBack: k => { const c = 2.2; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); },
+  outElastic: k => k <= 0 ? 0 : k >= 1 ? 1 : Math.pow(2, -10 * k) * Math.sin((k * 10 - .75) * (2 * Math.PI / 3)) + 1,
+};
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+
+/* ================= look ================= */
+const C = { cream: '#fbf4e8', paper: '#fffaf2', brown: '#4a2f22', brown2: '#8a6a58', shiba: '#f08a24', shibaDeep: '#e0701a', soft: '#fde2c4', white: '#ffffff', night: '#27304a', night2: '#3a4466' };
+const rf = (w, px) => `${w} ${px}px "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", sans-serif`;
+
+/* ================= stickers (8-frame strips) ================= */
+const STRIPS = /*STRIPS*/{};
+const SPR = {};
+function loadSprites() {
+  return Promise.all(Object.entries(STRIPS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { SPR[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+/* draw sticker k (e.g. '04') at x,y with width w; the animation plays at 8 fps from t0 */
+function sticker(g, k, x, y, w, t, t0 = 0) {
+  const im = SPR[k]; if (!im) return;
+  const fw = im.width / 8, fh = im.height, f = Math.floor(Math.max(0, t - t0) * 8) % 8, h = w * fh / fw;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(im, f * fw, 0, fw, fh, x, y, w, h);
+}
+const SH = 270 / 320; // sticker height per width
+
+/* ================= timeline ================= */
+const T0 = { hook: 0, title: BAR, scenes: BAR * 2, lineup: BAR * 6, end: BAR * 7 };
+const DAY = [
+  { chip: 'AM 7:00', label: 'あさ', cap: '朝から、全力。', sky: ['#fff1c7', '#fbf4e8'], ask: '起きてる？', a: '01', b: '02', icon: 'sun' },
+  { chip: 'PM 1:00', label: 'ひる', cap: 'しごと中も、全速力。', sky: ['#d7ecf6', '#fbf4e8'], ask: '会議はじまるよ！', a: '13', b: '15', icon: 'sun' },
+  { chip: 'PM 6:00', label: 'ゆうがた', cap: '感謝も、秒速。', sky: ['#ffd0a6', '#fbe8d6'], ask: '資料おくったよ〜', a: '14', b: '07', icon: 'sunset' },
+  { chip: 'PM 11:00', label: 'よる', cap: 'おやすみも、せっかち。', sky: ['#27304a', '#3a4466'], ask: '今日たのしかった！', a: '08', b: '09', icon: 'moon', night: true },
+];
+/* chat messages for the hook and each day scene: time offsets in beats from the scene start */
+function sceneMsgs(t0, ask, a, b) {
+  return [{ t: t0 + BEAT * .15, who: 'friend', text: ask }, { t: t0 + BEAT * 1, who: 'me', st: a }, { t: t0 + BEAT * 2.5, who: 'me', st: b }];
+}
+const HOOK_MSGS = [{ t: -.4, who: 'friend', text: '今どこ？' }, { t: BEAT * 1, who: 'me', st: '04', dash: true }];
+/* the running dog wipes from one scene to the next at every bar line */
+const WIPES = [T0.title, T0.scenes, T0.scenes + BAR, T0.scenes + BAR * 2, T0.scenes + BAR * 3, T0.lineup].map((t, i) => ({ t, st: ['04', '13', '05', '04', '13', '05'][i] }));
+const WIPE_A = .24, WIPE_B = .16;
+const TITLE_LINES = [['せっかちな', 58], ['豆柴の', 96], ['動く日常スタンプ', 46]];
+const CUES = {
+  bpm: BPM, t0: T0, end: DUR,
+  friend: [], sticker: [], dash: WIPES.map(w => w.t), letters: [], lineup: [], caption: [],
+};
+function buildCues() {
+  CUES.friend = []; CUES.sticker = []; CUES.letters = []; CUES.lineup = []; CUES.caption = [];
+  const all = [...HOOK_MSGS, ...DAY.flatMap((d, i) => sceneMsgs(T0.scenes + i * BAR, d.ask, d.a, d.b))];
+  all.forEach(m => (m.who === 'friend' ? CUES.friend : CUES.sticker).push(m.t));
+  let k = 0; TITLE_LINES.forEach(([s]) => [...s].forEach(() => CUES.letters.push(T0.title + .12 + (k++) * .035)));
+  for (let i = 0; i < 16; i++) CUES.lineup.push(T0.lineup + .1 + i * .035);
+  CUES.caption = [BEAT * 2.2, ...DAY.map((_, i) => T0.scenes + i * BAR + BEAT * .5)];
+}
+buildCues();
+window.CUES = CUES;
+
+/* ================= canvases ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const buf = document.createElement('canvas'), b = buf.getContext('2d');
+const alt = document.createElement('canvas'), a2 = alt.getContext('2d');
+let S = 1, paperTex = null;
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  const h = Math.round(w * 16 / 9);
+  for (const c of [cv, buf, alt]) { c.width = w; c.height = h; }
+  S = w / LW; buildPaper(); render(T);
+}
+/* soft watercolour paper: warm blotches and fine grain, multiplied over everything */
+function buildPaper() {
+  paperTex = document.createElement('canvas'); paperTex.width = cv.width; paperTex.height = cv.height;
+  const g = paperTex.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.scale(S, S);
+  for (let i = 0; i < 26; i++) {
+    const x = hash(i * 3) * LW, y = hash(i * 7) * LH, r = 50 + hash(i * 11) * 120, gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(240,180,120,.07)'); gr.addColorStop(1, 'rgba(240,180,120,0)'); g.fillStyle = gr; g.fillRect(0, 0, LW, LH);
+  }
+  const im = g.getImageData(0, 0, paperTex.width, paperTex.height);
+  for (let i = 0; i < im.data.length; i += 4) { const n = (hash(i * .13) - .5) * 14; im.data[i] += n; im.data[i + 1] += n; im.data[i + 2] += n; }
+  g.putImageData(im, 0, 0);
+}
+
+/* ================= drawing helpers ================= */
+function rrect(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function outlined(g, s, x, y, fill, stroke, lw) { g.lineJoin = 'round'; g.strokeStyle = stroke; g.lineWidth = lw; g.strokeText(s, x, y); g.fillStyle = fill; g.fillText(s, x, y); }
+function bgDay(g, sky, night, t) {
+  const gr = g.createLinearGradient(0, 0, 0, LH); gr.addColorStop(0, sky[0]); gr.addColorStop(.62, sky[1]); gr.addColorStop(1, night ? sky[1] : C.cream);
+  g.fillStyle = gr; g.fillRect(0, 0, LW, LH);
+  if (night) {
+    for (let i = 0; i < 40; i++) {
+      const tw = .4 + .6 * Math.abs(Math.sin(t * 2 + i));
+      g.fillStyle = `rgba(255,244,214,${.5 * tw})`; g.beginPath(); g.arc(hash(i) * LW, hash(i + 50) * LH * .55, .8 + hash(i + 9) * 1.4, 0, 7); g.fill();
+    }
+  } else {
+    /* paw-print confetti, very faint */
+    g.fillStyle = 'rgba(240,138,36,.07)';
+    for (let i = 0; i < 14; i++) paw(g, hash(i * 5) * LW, hash(i * 9) * LH, 10 + hash(i) * 8, hash(i * 2) * 6);
+  }
+}
+function paw(g, x, y, r, rot) {
+  g.save(); g.translate(x, y); g.rotate(rot);
+  g.beginPath(); g.ellipse(0, r * .3, r * .62, r * .5, 0, 0, 7); g.fill();
+  for (const [dx, dy] of [[-.62, -.35], [-.22, -.72], [.22, -.72], [.62, -.35]]) { g.beginPath(); g.ellipse(dx * r, dy * r, r * .2, r * .26, 0, 0, 7); g.fill(); }
+  g.restore();
+}
+function chip(g, text, label, icon, x, y, night, a) {
+  g.save(); g.globalAlpha = a; g.font = rf(900, 18);
+  const w1 = g.measureText(text).width; g.font = rf(700, 15); const w2 = g.measureText(label).width, W = 56 + w1 + 12 + w2 + 22;
+  rrect(g, x - W / 2, y - 22, W, 44, 22); g.fillStyle = night ? 'rgba(255,255,255,.14)' : C.white; g.fill();
+  const ix = x - W / 2 + 28;
+  if (icon === 'moon') { g.fillStyle = '#ffe7a8'; g.beginPath(); g.arc(ix, y, 10, 0, 7); g.fill(); g.fillStyle = night ? C.night : C.white; g.beginPath(); g.arc(ix + 5, y - 4, 9, 0, 7); g.fill(); }
+  else { g.fillStyle = icon === 'sunset' ? '#ff9a4a' : '#ffc23d'; g.beginPath(); g.arc(ix, y, 8, 0, 7); g.fill(); g.strokeStyle = g.fillStyle; g.lineWidth = 2.5; g.lineCap = 'round'; for (let i = 0; i < 8; i++) { const an = i * Math.PI / 4; g.beginPath(); g.moveTo(ix + Math.cos(an) * 11, y + Math.sin(an) * 11); g.lineTo(ix + Math.cos(an) * 15, y + Math.sin(an) * 15); g.stroke(); } }
+  g.textBaseline = 'middle'; g.font = rf(900, 18); g.fillStyle = night ? C.cream : C.brown; g.fillText(text, ix + 22, y + 1);
+  g.font = rf(700, 15); g.fillStyle = night ? 'rgba(251,244,232,.7)' : C.brown2; g.fillText(label, ix + 22 + w1 + 12, y + 1);
+  g.restore();
+}
+function caption(g, s, y, t0, t, night) {
+  const k = seg(t, t0, t0 + .35); if (k <= 0) return;
+  g.save(); g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.font = rf(900, 38);
+  const sc = lerp(.6, 1, E.outBack(k)); g.translate(270, y); g.scale(sc, sc); g.globalAlpha = clamp(k * 3);
+  outlined(g, s, 0, 0, night ? C.cream : C.brown, night ? C.night : C.paper, 10);
+  /* orange highlighter under the line */
+  g.globalCompositeOperation = 'destination-over'; g.fillStyle = night ? 'rgba(240,138,36,.55)' : 'rgba(240,138,36,.35)';
+  const w = g.measureText(s).width * E.outCubic(seg(t, t0 + .15, t0 + .45)); rrect(g, -g.measureText(s).width / 2 - 6, -6, w + 12, 16, 8); g.fill();
+  g.restore();
+}
+/* chat column: newest at the bottom, older ones pushed up as new ones land */
+function chat(g, msgs, t, night, o = {}) {
+  const BOTTOM = o.bottom || 810, GAP = 18, SW = o.sw || 270, FS = o.fs || 26, BH = FS * 2.6;
+  const vis = msgs.filter(m => m.t <= t);
+  const heights = vis.map(m => m.who === 'friend' ? BH : SW * SH);
+  vis.forEach((m, i) => {
+    let off = 0;
+    for (let j = i + 1; j < vis.length; j++) off += (heights[j] + GAP) * E.outCubic(seg(t, vis[j].t, vis[j].t + .22));
+    const yb = BOTTOM - off, h = heights[i], k = seg(t, m.t, m.t + .32);
+    g.save();
+    if (m.who === 'friend') {
+      g.font = rf(700, FS); const tw = g.measureText(m.text).width, bw = tw + FS * 1.7, x = 96;
+      /* avatar */
+      g.globalAlpha = clamp(k * 3);
+      g.fillStyle = night ? '#55608a' : '#ecdcc7'; g.beginPath(); g.arc(62, yb - 26, 24, 0, 7); g.fill();
+      g.fillStyle = night ? '#dfe3f2' : C.brown2; g.beginPath(); g.arc(62, yb - 32, 8, 0, 7); g.fill(); g.beginPath(); g.ellipse(62, yb - 14, 13, 8, 0, Math.PI, 0); g.fill();
+      const sc = lerp(.5, 1, E.outBack(k)); g.translate(x, yb); g.scale(sc, sc); g.translate(-x, -yb);
+      rrect(g, x, yb - h, bw, h, h / 2); g.fillStyle = C.white; g.fill();
+      g.beginPath(); g.moveTo(x + 4, yb - h + 18); g.lineTo(x - 8, yb - h + 14); g.lineTo(x + 8, yb - h + 30); g.fill();
+      g.fillStyle = C.brown; g.textBaseline = 'middle'; g.fillText(m.text, x + FS * .85, yb - h / 2 + 1);
+    } else {
+      const x = LW - 28 - SW;
+      let dx = 0;
+      if (m.dash) dx = (1 - E.outCubic(seg(t, m.t, m.t + .28))) * 420;
+      const sc = m.dash ? 1 : lerp(.3, 1, E.outBack(k)), rot = m.dash ? -.12 * Math.sin(Math.PI * seg(t, m.t + .2, m.t + .5)) : (1 - E.outCubic(k)) * .25;
+      g.translate(x + SW / 2 + dx, yb); g.rotate(rot); g.scale(sc, sc);
+      sticker(g, m.st, -SW / 2, -h, SW, t, m.t);
+      if (m.dash && t < m.t + .45) speedLines(g, -SW / 2, -h, h, seg(t, m.t, m.t + .45), 1);
+    }
+    g.restore();
+  });
+}
+function speedLines(g, x, y, h, k, dir) {
+  g.save(); g.strokeStyle = `rgba(240,138,36,${.8 * (1 - k)})`; g.lineCap = 'round';
+  for (let i = 0; i < 6; i++) {
+    const yy = y + h * (.2 + i * .12), len = 40 + hash(i * 7) * 70;
+    g.lineWidth = 3 + hash(i) * 3; g.beginPath(); g.moveTo(x - 10 * dir, yy); g.lineTo(x - (10 + len) * dir, yy); g.stroke();
+  }
+  g.restore();
+}
+
+/* ================= scenes ================= */
+function sceneHook(g, t) {
+  bgDay(g, ['#fff6de', C.cream], false, t);
+  g.save(); g.textAlign = 'center'; g.font = rf(700, 16); g.fillStyle = C.brown2;
+  g.fillText('ともだち', 270, 120); g.fillStyle = C.line || '#ead9c4'; g.fillRect(40, 140, 460, 2); g.restore();
+  chat(g, HOOK_MSGS, t, false, { bottom: 700, sw: 320, fs: 30 });
+  caption(g, '返信が、はやすぎる。', 230, CUES.caption[0], t, false);
+}
+function sceneTitle(g, t) {
+  const u = t - T0.title;
+  g.fillStyle = C.shiba; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = 'rgba(255,250,242,.14)';
+  for (let r = 0; r < 18; r++) for (let q = 0; q < 10; q++) { g.beginPath(); g.arc(q * 60 + (r % 2) * 30, r * 56 - (u * 40) % 56, 6, 0, 7); g.fill(); }
+  /* the main sticker bounces on each beat */
+  const beat = (t - T0.title) / BEAT, bounce = Math.abs(Math.sin(Math.PI * beat)) * 10, pop = E.outBack(seg(u, 0, .35));
+  g.save(); g.translate(270, 330 - bounce); g.scale(pop, pop); sticker(g, 'main', -150, -150, 300, t, T0.title); g.restore();
+  g.save(); g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  let k = 0, y = 540;
+  TITLE_LINES.forEach(([s, px], li) => {
+    g.font = rf(900, px); const chars = [...s], w = g.measureText(s).width; let x = 270 - w / 2;
+    y += px * (li === 0 ? .6 : 1.08);
+    chars.forEach(c => {
+      const t0 = CUES.letters[k++], kk = seg(t, t0, t0 + .28), cw = g.measureText(c).width;
+      if (kk > 0) {
+        g.save(); g.translate(x + cw / 2, y); const sc = E.outBack(kk); g.scale(sc, sc); g.rotate((1 - E.outCubic(kk)) * -.3);
+        outlined(g, c, 0, 0, li === 1 ? C.paper : C.paper, C.brown, px * .16); g.restore();
+      }
+      x += cw;
+    });
+  });
+  const lk = E.outBack(seg(u, .9, 1.2));
+  if (lk > 0) {
+    g.translate(270, 150); g.scale(lk, lk); g.font = rf(900, 20); const w = g.measureText('LINE スタンプ').width + 44;
+    rrect(g, -w / 2, -22, w, 44, 22); g.fillStyle = C.paper; g.fill(); g.fillStyle = C.shibaDeep; g.textBaseline = 'middle'; g.fillText('LINE スタンプ', 0, 1);
+  }
+  g.restore();
+}
+function sceneDay(g, i, t) {
+  const d = DAY[i], t0 = T0.scenes + i * BAR;
+  bgDay(g, d.sky, d.night, t);
+  chip(g, d.chip, d.label, d.icon, 270, 120, d.night, E.outCubic(seg(t, t0, t0 + .25)));
+  caption(g, d.cap, 222, CUES.caption[i + 1], t, d.night);
+  chat(g, sceneMsgs(t0, d.ask, d.a, d.b), t, d.night);
+}
+function sceneLineup(g, t) {
+  const u = t - T0.lineup;
+  g.fillStyle = C.cream; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = 'rgba(240,138,36,.1)';
+  for (let r = 0; r < 20; r++) for (let q = 0; q < 12; q++) { g.beginPath(); g.arc(q * 48 + (r % 2) * 24, r * 50, 3, 0, 7); g.fill(); }
+  /* headline: 全16種、ぜんぶ動く！ */
+  const hk = E.outBack(seg(u, 0, .3));
+  g.save(); g.translate(270, 150); g.scale(hk, hk); g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.font = rf(900, 34); const a = '全', n = '16', s = '種、ぜんぶ動く！';
+  g.font = rf(900, 34); const wa = g.measureText(a).width, ws = g.measureText(s).width; g.font = rf(900, 64); const wn = g.measureText(n).width;
+  let x = -(wa + wn + ws) / 2;
+  g.textAlign = 'left'; g.font = rf(900, 34); outlined(g, a, x, 0, C.brown, C.paper, 8); x += wa;
+  g.font = rf(900, 64); outlined(g, n, x, 6, C.shiba, C.paper, 10); x += wn;
+  g.font = rf(900, 34); outlined(g, s, x, 0, C.brown, C.paper, 8);
+  g.restore();
+  /* 4 x 4 grid, popping in quickly, then bouncing with the beat */
+  const cw = 124, ch = 118, x0 = 270 - cw * 2, y0 = 205;
+  for (let i = 0; i < 16; i++) {
+    const k = seg(t, CUES.lineup[i], CUES.lineup[i] + .3); if (k <= 0) continue;
+    const q = i % 4, r = Math.floor(i / 4), cx = x0 + q * cw + cw / 2, cy = y0 + r * ch + ch / 2;
+    const bob = Math.max(0, Math.sin(Math.PI * 2 * ((t - T0.lineup) / BEAT + (q + r) * .12))) * -5;
+    g.save(); g.translate(cx, cy + bob); const sc = E.outBack(k); g.scale(sc, sc);
+    rrect(g, -cw / 2 + 4, -ch / 2 + 4, cw - 8, ch - 8, 18); g.fillStyle = C.white; g.fill();
+    sticker(g, String(i + 1).padStart(2, '0'), -cw / 2 + 8, -ch / 2 + 10, cw - 16, t, CUES.lineup[i]);
+    g.restore();
+  }
+  const bk = seg(u, .9, 1.25);
+  if (bk > 0) {
+    g.save(); g.globalAlpha = clamp(bk * 3); g.textAlign = 'center'; g.font = rf(700, 22); g.fillStyle = C.brown;
+    g.fillText('毎日の返事が、ちょっと楽しくなる。', 270, 740 + (1 - E.outCubic(bk)) * 10); g.restore();
+  }
+}
+function sceneEnd(g, t) {
+  const u = t - T0.end;
+  const gr = g.createLinearGradient(0, 0, 0, LH); gr.addColorStop(0, '#ffd9b0'); gr.addColorStop(.7, C.cream); g.fillStyle = gr; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = 'rgba(240,138,36,.09)'; for (let i = 0; i < 12; i++) paw(g, hash(i * 3 + 1) * LW, hash(i * 5 + 2) * LH, 12 + hash(i) * 8, hash(i) * 6);
+  const pk = E.outBack(seg(u, 0, .35)), beat = u / BEAT, bounce = Math.abs(Math.sin(Math.PI * beat)) * 8;
+  g.save(); g.translate(270, 330 - bounce); g.scale(pk, pk); sticker(g, '16', -160, -270, 320, t, T0.end); g.restore();
+  g.save(); g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  const l1 = E.outBack(seg(u, .15, .45)), l2 = E.outBack(seg(u, .25, .55));
+  g.save(); g.translate(270, 430); g.scale(l1, l1); g.font = rf(900, 40); outlined(g, 'せっかちな豆柴の', 0, 0, C.brown, C.paper, 10); g.restore();
+  g.save(); g.translate(270, 492); g.scale(l2, l2); g.font = rf(900, 46); outlined(g, '動く日常スタンプ', 0, 0, C.shibaDeep, C.paper, 11); g.restore();
+  const pk2 = E.outBack(seg(u, .45, .75));
+  if (pk2 > 0) {
+    g.save(); g.translate(270, 572); g.scale(pk2, pk2); g.font = rf(900, 22); const w = g.measureText('LINEスタンプ 発売中').width + 52;
+    rrect(g, -w / 2, -25, w, 50, 25); g.fillStyle = C.shiba; g.fill(); g.fillStyle = C.white; g.textBaseline = 'middle'; g.fillText('LINEスタンプ 発売中', 0, 1); g.restore();
+  }
+  const ck = E.outCubic(seg(u, .7, 1.0));
+  if (ck > 0) {
+    g.globalAlpha = ck; g.font = rf(700, 20); g.fillStyle = C.brown2; g.fillText('16種類・ぜんぶ動く', 270, 640);
+    /* CTA with a paw arrow that nudges on every beat */
+    g.font = rf(900, 28); g.fillStyle = C.brown; g.fillText('プロフィールのリンクから', 270, 720 + (1 - ck) * 8);
+    const nudge = Math.max(0, Math.sin(Math.PI * 2 * (beat % 1))) * 8;
+    g.fillStyle = C.shiba; g.save(); g.translate(270, 760 - nudge); g.beginPath(); g.moveTo(-14, 8); g.lineTo(0, -10); g.lineTo(14, 8); g.lineTo(6, 8); g.lineTo(6, 22); g.lineTo(-6, 22); g.lineTo(-6, 8); g.closePath(); g.fill(); g.restore();
+  }
+  g.restore();
+}
+
+/* draw a whole scene for time t into context g */
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  if (t < T0.title) sceneHook(g, t);
+  else if (t < T0.scenes) sceneTitle(g, t);
+  else if (t < T0.lineup) sceneDay(g, clamp(Math.floor((t - T0.scenes) / BAR), 0, 3), t);
+  else if (t < T0.end) sceneLineup(g, t);
+  else sceneEnd(g, t);
+}
+
+/* the dog runs across and the next scene is painted behind it */
+function renderFrame(t) {
+  const w = WIPES.find(w => t >= w.t - WIPE_A && t < w.t + WIPE_B);
+  scene(b, t < (w ? w.t : -1) ? w.t + .001 : t);
+  if (!w) return;
+  const k = E.inOutCubic(seg(t, w.t - WIPE_A, w.t + WIPE_B)), dogX = lerp(-420, 620, k), edge = dogX + 170;
+  /* old scene stays to the right of the dog */
+  scene(a2, Math.min(t, w.t - .001));
+  b.save(); b.setTransform(1, 0, 0, 1, 0, 0); b.beginPath(); b.rect(edge * S, 0, buf.width - edge * S, buf.height); b.clip(); b.drawImage(alt, 0, 0); b.restore();
+  /* dust, speed lines and the dog itself */
+  b.setTransform(S, 0, 0, S, 0, 0);
+  const y = 380, bob = Math.abs(Math.sin(t * 30)) * -8;
+  b.fillStyle = 'rgba(240,138,36,.18)'; b.fillRect(0, 0, Math.max(0, edge - 40), LH);
+  b.fillStyle = 'rgba(255,250,242,.9)';
+  for (let i = 0; i < 7; i++) { const dx = dogX - 20 - i * 34, r = 10 + i * 4; b.globalAlpha = (1 - i / 7) * .9; b.beginPath(); b.arc(dx, y + 250 + Math.sin(i * 2 + t * 40) * 6, r, 0, 7); b.fill(); }
+  b.globalAlpha = 1;
+  speedLines(b, dogX + 20, y + 20, 200, 0, 1);
+  b.save(); b.translate(dogX + 170, y + bob); b.rotate(-.05); sticker(b, w.st, -190, 0, 380, t, w.t - WIPE_A); b.restore();
+}
+function compose(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.drawImage(buf, 0, 0);
+  ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(paperTex, 0, 0); ctx.globalCompositeOperation = 'source-over';
+}
+let T = 0;
+function render(t) { T = t; if (!cv.width || !paperTex || !SPR['01']) return; renderFrame(t); compose(t); updateUi(); }
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const BOARD = [[T0.hook, 'つかみ', '「今どこ？」に「今行く！」で即レス'], [T0.title, 'タイトル', 'せっかちな豆柴の、動く日常スタンプ'], [T0.scenes, 'あさ', '起きてる？ → おはよう・了解！'], [T0.scenes + BAR, 'ひる', '会議はじまるよ → 急いでます・確認するね'], [T0.scenes + BAR * 2, 'ゆうがた', '資料おくったよ → 助かった！・おつかれ'], [T0.scenes + BAR * 3, 'よる', '今日たのしかった → やったー！・おやすみ'], [T0.lineup, 'ぜんぶ', '全16種、ぜんぶ動く'], [T0.end, 'しめ', 'LINEスタンプ発売中・プロフィールのリンクから']];
+$('board').innerHTML = BOARD.map(([t, n, d]) => `<li><button data-t="${t}"><span class="t">${t.toFixed(1)}s</span><span><b>${n}</b><span class="d">${d}</span></span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = 0; BOARD.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#board li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '🔊 音あり' : '🔇 音なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#board button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + .3); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadSprites(), ...[rf(900, 40), rf(700, 24), rf(500, 16)].map(f => document.fonts.load(f, 'せっかちな豆柴Aa16'))]).catch(() => {}).then(() => {
+  resize(); render(T0.end + 1.2); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

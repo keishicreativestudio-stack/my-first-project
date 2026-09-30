@@ -1,0 +1,14 @@
+{
+  "handle": "@aichallenge365",
+  "series": "AIチャレンジ Day2",
+  "theme": "light",
+  "scenes": [
+    {"style": "hook", "text": "献立に悩んだら\n冷蔵庫を**撮って**\nAIに見せてみて"},
+    {"text": "今日の冷蔵庫\n**これだけ**しかない", "image": "rec/1002_fridge.jpg"},
+    {"label": "送ったのはこの一文", "code": "この冷蔵庫の中身で、3日分の夕飯の献立を考えて。\n・2人分、1食30分以内\n・今ある食材をできるだけ使い切る\n・足りない食材は買い物リストにまとめて", "text": ""},
+    {"text": "**3日分の献立**が\n一瞬で出てきた", "clip": "rec/1002_chatgpt.mp4", "clip_speed": 2, "clip_max": 6},
+    {"text": "足りない食材の\n**買い物リスト**まで", "clip": "rec/1002_chatgpt.mp4", "clip_start": 12, "clip_speed": 2, "clip_max": 5},
+    {"text": "使ったのは\n**写真1枚と一文**だけ"},
+    {"style": "cta", "text": "保存して\n**今夜さっそく**使って"}
+  ]
+}

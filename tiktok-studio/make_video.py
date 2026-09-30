@@ -233,7 +233,8 @@ class Scene:
         bw, bh = self.media_size()
         img = Image.new("RGB", (bw, bh - 200), self.theme["panel"])
         d = ImageDraw.Draw(img)
-        d.text((bw // 2, img.height // 2 - 40), "ここに画面録画", font=fonts.get(64),
+        is_photo = Path(name).suffix.lower() in (".jpg", ".jpeg", ".png", ".webp", ".heic")
+        d.text((bw // 2, img.height // 2 - 40), "ここに写真" if is_photo else "ここに画面録画", font=fonts.get(64),
                fill=self.theme["panel_text"], anchor="mm")
         d.text((bw // 2, img.height // 2 + 50), Path(name).name, font=fonts.get(40),
                fill=self.theme["panel_text"], anchor="mm")

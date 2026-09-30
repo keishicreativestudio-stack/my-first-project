@@ -1,0 +1,376 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 和ビート</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Dela+Gothic+One&display=swap">
+<style>
+/* Layout: the 9:16 player beside a bar-by-bar cue grid, like a DJ's track overview; stacks on phones. Single committed black look. */
+:root {
+  --black: #0a0a0b;
+  --panel: #151517;
+  --line: #2a2a2e;
+  --white: #f5f3ef;
+  --muted: #8d8b87;
+  --red: #ff3b2f;
+  --brush: "Yuji Syuku", serif;
+  --heavy: "Dela Gothic One", "Hiragino Sans", sans-serif;
+  color-scheme: dark;
+}
+html, body { background: var(--black); color: var(--white); }
+body { font-family: var(--heavy); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.6; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font-size: 12px; letter-spacing: .25em; color: var(--muted); }
+h1 { font: 400 40px/1.1 var(--heavy); margin: 6px 0; }
+h1 span { color: var(--red); }
+.lede { margin: 0; color: var(--muted); font: 400 14px/1.8 "Hiragino Sans", system-ui, sans-serif; max-width: 42ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 400 13px var(--heavy); color: var(--white); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 7px 14px; cursor: pointer; }
+button:hover { border-color: var(--red); }
+button.primary { background: var(--red); border-color: var(--red); min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.tc { font: 400 13px var(--heavy); font-variant-numeric: tabular-nums; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--red); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+.grid button { padding: 8px 4px; display: grid; gap: 2px; text-align: center; font-size: 11px; border-radius: 3px; }
+.grid button b { font: 400 18px var(--brush); }
+.grid button.drop { border-color: #5a2320; }
+.grid button.on { background: var(--red); border-color: var(--red); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 和ビート"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AIチャレンジ365 · 30秒 · 128 BPM</div>
+      <h1>和<span>×</span>ビート</h1>
+      <p class="lede">曲の拍に合わせて、切り替え、ズーム、文字、色ずれがすべて動く版です。16小節、2回の盛り上がり。下のマスは1マス＝1小節です。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 128, BEAT = 60 / BPM, BAR = BEAT * 4;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outCubic: k => 1 - Math.pow(1 - k, 3),
+  inCubic: k => k * k * k,
+  outExpo: k => k >= 1 ? 1 : 1 - Math.pow(2, -10 * k),
+  inOutCubic: k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
+  outBack: k => { const c = 2.2; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); },
+};
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const brushF = px => `400 ${px}px "Yuji Syuku", serif`;
+const heavy = px => `400 ${px}px "Dela Gothic One", "Hiragino Sans", sans-serif`;
+const barOf = t => Math.floor(t / BAR + 1e-9), beatOf = t => Math.floor(t / BEAT + 1e-9);
+const sinceBeat = t => t - beatOf(t) * BEAT;
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+function shot(g, key, cx, cy, z, rot = 0) {
+  const im = IM[key]; if (!im) return;
+  const cover = Math.max(LW / im.width, LH / im.height) * z, w = im.width * cover, h = im.height * cover;
+  const x = clamp(LW / 2 - cx * w, LW - w, 0), y = clamp(LH / 2 - cy * h, LH - h, 0);
+  g.save(); if (rot) { g.translate(LW / 2, LH / 2); g.rotate(rot); g.translate(-LW / 2, -LH / 2); }
+  g.drawImage(im, x, y, w, h); g.restore();
+}
+/* four crops per picture; the drop jumps to the next one on every beat */
+const CROPS = {
+  momiji: [[.18, .5, 1.1], [.12, .8, 1.8], [.55, .5, 1.25], [.8, .3, 1.6]],
+  onsen: [[.5, .5, 1.05], [.3, .55, 1.6], [.5, .3, 1.5], [.5, .75, 1.3]],
+  sushi: [[.3, .55, 1.3], [.5, .5, 1.7], [.75, .5, 1.4], [.55, .6, 1.1]],
+  matcha: [[.68, .45, 1.2], [.55, .72, 1.8], [.95, .4, 1.5], [.2, .4, 1.3]],
+  indigo: [[.55, .5, 1.1], [.4, .6, 1.7], [.2, .45, 1.5], [.75, .3, 1.5]],
+  maneki: [[.5, .45, 1.05], [.5, .38, 1.7], [.55, .6, 1.6], [.2, .7, 1.4]],
+  street: [[.35, .5, 1.05], [.8, .35, 1.5], [.3, .7, 1.6], [.6, .5, 1.2]],
+  festival: [[.62, .3, 1.3], [.4, .7, 1.4], [.1, .3, 1.5], [.55, .45, 1.05]],
+};
+const DROP = [
+  { key: 'momiji', kanji: '季', word: '紅葉', tr: 'slice' },
+  { key: 'onsen', kanji: '湯', word: '雪見風呂', tr: 'iris' },
+  { key: 'sushi', kanji: '食', word: '寿司', tr: 'split' },
+  { key: 'matcha', kanji: '茶', word: '抹茶', tr: 'whip' },
+  { key: 'indigo', kanji: '藍', word: '藍染め', tr: 'slice' },
+  { key: 'maneki', kanji: '福', word: '招き猫', tr: 'iris' },
+  { key: 'street', kanji: '灯', word: '夕暮れの町', tr: 'split' },
+  { key: 'festival', kanji: '祭', word: '花火', tr: 'flash' },
+];
+const ALL = ['koi', 'cranes', 'fuji', 'bamboo', 'momiji', 'onsen', 'sushi', 'matcha', 'indigo', 'maneki', 'street', 'festival', 'taiko', 'samurai', 'torii'];
+
+/* ================= timeline: 16 bars ================= */
+const B = { intro: 0, build: 2, count: 3, drop: 4, drop2: 8, build2: 12, final: 14, logo: 15 };
+const at = b => b * BAR;
+const CUES = {
+  bpm: BPM, end: DUR, bars: 16, marks: B,
+  countdown: [at(3), at(3) + BEAT, at(3) + BEAT * 2],
+  slams: [...Array(8)].map((_, i) => at(4 + i)), logo: at(15), cta: at(15) + BEAT * 2,
+};
+window.CUES = CUES;
+
+/* ================= canvases ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const buf = document.createElement('canvas'), b = buf.getContext('2d');
+const alt = document.createElement('canvas'), a2 = alt.getContext('2d');
+const chan = [0, 1, 2].map(() => document.createElement('canvas'));
+let S = 1, grains = [];
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  const h = Math.round(w * 16 / 9);
+  for (const c of [cv, buf, alt, ...chan]) { c.width = w; c.height = h; }
+  S = w / LW;
+  grains = [0, 1, 2].map(k => { const c = document.createElement('canvas'); c.width = c.height = 150; const g = c.getContext('2d'), im = g.createImageData(150, 150); for (let i = 0; i < im.data.length; i += 4) { const v = hash(i * .41 + k * 53) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; } g.putImageData(im, 0, 0); return c; });
+  render(T);
+}
+
+/* ================= type ================= */
+function slamText(g, s, x, y, font, t0, t, o = {}) {
+  const k = seg(t, t0, t0 + (o.dur || .16)); if (k <= 0) return;
+  const sc = lerp(o.from || 1.9, 1, E.outCubic(k));
+  g.save(); g.translate(x, y); g.scale(sc, sc); g.rotate(o.rot || 0);
+  g.globalAlpha *= clamp(k * 3) * (o.alpha ?? 1);
+  g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (o.stroke) { g.lineJoin = 'round'; g.strokeStyle = o.stroke; g.lineWidth = o.lw || 10; g.strokeText(s, 0, 0); }
+  g.fillStyle = o.fill || '#fff'; g.fillText(s, 0, 0);
+  g.restore();
+}
+function band(g, y, h, a = .55) { g.fillStyle = `rgba(0,0,0,${a})`; g.fillRect(0, y - h / 2, LW, h); }
+
+/* ================= sections ================= */
+function kickPulse(t) { const u = sinceBeat(t); return Math.exp(-u * 14); }
+function intro(g, t) {
+  const bar = barOf(t), bt = beatOf(t), u = sinceBeat(t);
+  /* bar 0: the koi, slow; bar 1: cranes and fuji alternate every two beats */
+  const seq = bar === 0 ? ['koi', 'koi', 'koi', 'koi'] : bar === 1 ? ['cranes', 'cranes', 'fuji', 'fuji'] : ['bamboo', 'momiji', 'onsen', 'torii'];
+  const key = seq[bt % 4];
+  const z = 1.08 + .12 * seg(t, at(bar), at(bar + 1)) + (bar >= 1 ? .05 * kickPulse(t) : 0);
+  const crops = { koi: [.5, .5], cranes: [.3 + .1 * (bt % 2), .5], fuji: [.62, .45], bamboo: [.5, .5], momiji: [.2, .5], onsen: [.5, .5], torii: [.66, .5] };
+  shot(g, key, crops[key][0], crops[key][1], z);
+  if (bar === 0) { band(g, 480, 170, .35); slamText(g, 'これ全部、', 270, 480, heavy(64), -1, t, { stroke: '#000', lw: 12 }); }
+  if (bar === 1) { band(g, 480, 170, .35); slamText(g, 'AIで描いた。', 270, 480, heavy(58), at(1), t, { stroke: '#000', lw: 12 }); }
+  if (bar === 2) {
+    band(g, 480, 170, .4);
+    const words = ['四季も', '食も', '祭りも', '日本も'];
+    slamText(g, words[bt % 4], 270, 480, heavy(66), at(2) + (bt % 4) * BEAT, t, { stroke: '#000', lw: 12, from: 1.5, dur: .1 });
+  }
+}
+function countdown(g, t) {
+  const bt = beatOf(t) % 4, u = sinceBeat(t);
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  if (bt < 3) {
+    shot(g, ['fuji', 'bamboo', 'cranes'][bt], .55, .5, 1.3 + .25 * u / BEAT);
+    g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, 0, LW, LH);
+    /* red circle behind the number, snapping in */
+    const k = E.outBack(seg(u, 0, .18));
+    g.save(); g.translate(270, 480); g.scale(k, k); g.fillStyle = '#ff3b2f'; g.beginPath(); g.arc(0, 0, 150, 0, 7); g.fill(); g.restore();
+    slamText(g, String(3 - bt), 270, 492, heavy(220), at(3) + bt * BEAT, t, { from: 2.4, dur: .12 });
+  } else {
+    /* the breath: black with a thin white line drawing across */
+    const k = seg(u, 0, BEAT); g.fillStyle = '#fff'; g.fillRect(270 - 240 * k, 479, 480 * k, 2);
+  }
+}
+/* a picture during the drop: jump crop on every beat, punch on every kick, tilt on the snare */
+function dropShot(g, d, t, bt) {
+  const u = sinceBeat(t), c = (CROPS[d.key] || [[.5, .5, 1.1]])[bt % 4];
+  const z = c[2] * (1 + .08 * Math.exp(-u * 12)) * (1 + .03 * u / BEAT);
+  const rot = (bt % 2 ? 1 : -1) * .012 * Math.exp(-u * 10);
+  shot(g, d.key, c[0], c[1], z, rot);
+}
+function transition(g, kind, k, draw) {
+  g.save();
+  if (kind === 'slice') {
+    g.beginPath();
+    for (let i = 0; i < 6; i++) { const w = LW / 6 + 60, dir = i % 2 ? 1 : -1, off = (1 - E.outCubic(clamp(k * 1.4 - i * .06))) * LH * dir; g.moveTo(i * LW / 6 - 30, off - 60); g.lineTo(i * LW / 6 + w, off - 60 + 60); g.lineTo(i * LW / 6 + w, off + LH + 60); g.lineTo(i * LW / 6 - 30, off + LH); g.closePath(); }
+    g.clip();
+  } else if (kind === 'iris') { g.beginPath(); g.arc(270, 480, 620 * E.outCubic(k), 0, 7); g.clip(); }
+  else if (kind === 'split') {
+    g.beginPath(); for (let i = 0; i < 3; i++) { const off = (1 - E.outCubic(clamp(k * 1.3 - i * .1))) * LW * (i % 2 ? -1 : 1); g.rect(off, i * LH / 3, LW, LH / 3 + 1); } g.clip();
+  } else if (kind === 'whip') { g.translate((1 - E.outCubic(k)) * LW, 0); }
+  draw(); g.restore();
+}
+function drop(g, t) {
+  const bar = barOf(t), i = (bar - B.drop) % 8, d = DROP[i], bt = beatOf(t), u = t - at(bar);
+  const prev = DROP[(i + 7) % 8];
+  /* transition over the first 0.18 s of each bar */
+  if (u < .18 && bar > B.drop) { dropShot(g, prev, at(bar) - .001, bt - 1); transition(g, d.tr, u / .18, () => dropShot(g, d, t, bt)); }
+  else dropShot(g, d, t, bt);
+  if (d.tr === 'flash' && u < .12) { g.fillStyle = `rgba(255,255,255,${1 - u / .12})`; g.fillRect(0, 0, LW, LH); }
+  /* bar 8-11 (second half of the drop) adds a split-screen echo on beats 2 and 4 */
+  if (bar >= B.drop2 && bt % 2 === 1) {
+    const e = Math.exp(-sinceBeat(t) * 8);
+    g.save(); g.globalAlpha = .55 * e; g.beginPath(); g.rect(0, 0, LW / 2, LH); g.clip(); g.translate(LW, 0); g.scale(-1, 1); dropShot(g, d, t, bt); g.restore();
+  }
+  /* the kanji: red disc pulsing on the kick, brushed character slammed on the downbeat */
+  const kp = kickPulse(t), out = 1 - seg(u, BAR - .12, BAR);
+  g.save(); g.globalAlpha = out;
+  const r = 118 * (1 + .08 * kp) * E.outBack(seg(u, 0, .2));
+  g.fillStyle = 'rgba(255,59,47,.92)'; g.beginPath(); g.arc(270, 430, Math.max(0, r), 0, 7); g.fill();
+  slamText(g, d.kanji, 270, 440, brushF(190), at(bar), t, { from: 2.2, dur: .14, fill: '#fff' });
+  g.font = heavy(26); g.textAlign = 'center'; g.fillStyle = '#fff'; g.lineJoin = 'round'; g.strokeStyle = '#000'; g.lineWidth = 7;
+  const wk = seg(u, BEAT, BEAT + .15); if (wk > 0) { g.globalAlpha = out * wk; g.strokeText(d.word, 270, 600); g.fillText(d.word, 270, 600); }
+  g.restore();
+}
+function build2(g, t) {
+  const bar = barOf(t), sub = bar === B.build2 ? 2 : 4, step = BEAT / sub, n = Math.floor((t - at(B.build2)) / step + 1e-9);
+  const key = ALL[(n * 7) % ALL.length], z = 1.25 + .2 * hash(n), cx = .3 + .4 * hash(n + 3), cy = .35 + .3 * hash(n + 9);
+  shot(g, key, cx, cy, z);
+  g.fillStyle = `rgba(0,0,0,${.2 + .25 * seg(t, at(B.build2), at(B.final))})`; g.fillRect(0, 0, LW, LH);
+  if (bar === B.build2) slamText(g, '描くのは、', 270, 480, heavy(70), at(B.build2), t, { stroke: '#000', lw: 12 });
+  else if (t < at(B.final) - BEAT) slamText(g, 'あなた。', 270, 480, heavy(96), at(13), t, { stroke: '#000', lw: 14, fill: '#ff3b2f' });
+  else { g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH); const k = seg(t, at(B.final) - BEAT, at(B.final)); g.fillStyle = '#ff3b2f'; g.beginPath(); g.arc(270, 480, 6 + 40 * E.outCubic(k), 0, 7); g.fill(); }
+}
+function finalDrop(g, t) {
+  const bt = beatOf(t) % 4, u = sinceBeat(t), kp = kickPulse(t);
+  const key = bt < 2 ? 'taiko' : 'samurai';
+  shot(g, key, bt < 2 ? .46 : .28, .45, (bt < 2 ? 1.35 : 1.2) * (1 + .12 * kp), (bt % 2 ? 1 : -1) * .02 * kp);
+  /* shockwave rings on every beat */
+  g.save(); g.strokeStyle = `rgba(255,255,255,${.7 * (1 - u / BEAT)})`; g.lineWidth = 6 * (1 - u / BEAT); g.beginPath(); g.arc(270, 480, 40 + 700 * E.outCubic(u / BEAT), 0, 7); g.stroke(); g.restore();
+  band(g, 480, 200, .4);
+  slamText(g, 'AIチャレンジ', 270, 450, heavy(66), at(B.final), t, { stroke: '#000', lw: 12, from: 2.4, dur: .12 });
+  slamText(g, '365', 270, 530, heavy(80), at(B.final) + BEAT * 2, t, { stroke: '#000', lw: 12, from: 2.4, dur: .12, fill: '#ff3b2f' });
+}
+function logo(g, t) {
+  const u = t - at(B.logo), kp = kickPulse(t);
+  g.fillStyle = '#0a0a0b'; g.fillRect(0, 0, LW, LH);
+  /* the fifteen pictures as a ring of thin slivers turning slowly behind the sun */
+  g.save(); g.translate(270, 400); g.rotate(u * .25);
+  for (let i = 0; i < 15; i++) { g.save(); g.rotate(i / 15 * 6.283); g.beginPath(); g.rect(-8, 170, 16, 300); g.clip(); g.translate(0, 320); g.rotate(-i / 15 * 6.283 - u * .25); g.globalAlpha = .5; const im = IM[ALL[i]]; if (im) g.drawImage(im, -120, -150, 240, 300); g.restore(); }
+  g.restore();
+  const r = 150 * (1 + .06 * kp) * E.outBack(seg(u, 0, .25));
+  g.fillStyle = '#ff3b2f'; g.beginPath(); g.arc(270, 400, Math.max(0, r), 0, 7); g.fill();
+  slamText(g, 'AI', 270, 410, brushF(170), at(B.logo), t, { from: 2, dur: .14 });
+  slamText(g, 'AIチャレンジ365', 270, 640, heavy(50), at(B.logo) + .08, t, { from: 1.6, dur: .14 });
+  if (t >= CUES.cta) {
+    const k = E.outCubic(seg(t, CUES.cta, CUES.cta + .25));
+    g.save(); g.globalAlpha = k; g.textAlign = 'center'; g.font = heavy(24); g.fillStyle = '#f5f3ef'; g.fillText('毎日、AIで描こう。', 270, 715);
+    g.font = heavy(20); g.fillStyle = '#ff3b2f'; g.fillText('プロフィールのリンクから', 270, 790);
+    const n = Math.max(0, Math.sin(Math.PI * 2 * (u / BEAT))) * 6; g.beginPath(); g.moveTo(256, 812 - n); g.lineTo(270, 828 - n); g.lineTo(284, 812 - n); g.fill(); g.restore();
+  }
+}
+/* HUD: bar progress along the top, four beat dots at the bottom */
+function hud(g, t) {
+  if (t >= at(B.logo)) return;
+  const bt = beatOf(t) % 4, kp = kickPulse(t);
+  g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(24, 28, LW - 48, 3);
+  g.fillStyle = '#ff3b2f'; g.fillRect(24, 28, (LW - 48) * t / DUR, 3);
+  g.font = heavy(13); g.fillStyle = 'rgba(255,255,255,.85)'; g.textAlign = 'left'; g.fillText('AIチャレンジ365', 24, 56);
+  g.textAlign = 'right'; g.fillText(String(barOf(t) + 1).padStart(2, '0') + ' / 16', LW - 24, 56); g.textAlign = 'left';
+  for (let i = 0; i < 4; i++) { g.fillStyle = i === bt ? `rgba(255,59,47,${.6 + .4 * kp})` : 'rgba(255,255,255,.3)'; g.beginPath(); g.arc(234 + i * 24, 920, i === bt ? 6 + 3 * kp : 4, 0, 7); g.fill(); }
+}
+
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  const bar = barOf(t);
+  if (bar < B.count) intro(g, t);
+  else if (bar < B.drop) countdown(g, t);
+  else if (bar < B.build2) drop(g, t);
+  else if (bar < B.final) build2(g, t);
+  else if (bar < B.logo) finalDrop(g, t);
+  else logo(g, t);
+  hud(g, t);
+}
+function rgbSplit(amount) {
+  const W = cv.width, H = cv.height, cols = ['#ff0000', '#00ff00', '#0000ff'];
+  chan.forEach((c, i) => { const x = c.getContext('2d'); x.globalCompositeOperation = 'source-over'; x.drawImage(buf, 0, 0); x.globalCompositeOperation = 'multiply'; x.fillStyle = cols[i]; x.fillRect(0, 0, W, H); });
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.drawImage(chan[0], amount * S, 0); ctx.drawImage(chan[1], 0, 0); ctx.drawImage(chan[2], -amount * S, amount * .3 * S);
+  ctx.globalCompositeOperation = 'source-over';
+}
+function compose(t) {
+  const W = cv.width, H = cv.height, f = frameOf(t), bar = barOf(t), bt = beatOf(t) % 4, u = sinceBeat(t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  const inDrop = (bar >= B.drop && bar < B.build2) || bar === B.final;
+  /* colour split on the claps (beats 2 and 4) in the drops, and all through the strobe build */
+  let split = 0;
+  if (inDrop && bt % 2 === 1) split = 10 * Math.exp(-u * 10);
+  if (bar >= B.build2 && bar < B.final) split = 4 + 6 * seg(t, at(B.build2), at(B.final));
+  if (bar === B.count && bt < 3) split = 8 * Math.exp(-u * 10);
+  if (split > .5) rgbSplit(split); else ctx.drawImage(buf, 0, 0);
+  /* bloom */
+  if ('filter' in ctx) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .18; ctx.filter = `blur(${10 * S}px)`; ctx.drawImage(buf, 0, 0); ctx.restore(); ctx.filter = 'none'; }
+  /* white flash on the drops and the logo */
+  for (const h of [at(B.drop), at(B.drop2), at(B.final), at(B.logo)]) { const v = t - h; if (v >= 0 && v < .3) { ctx.fillStyle = `rgba(255,255,255,${.9 * Math.pow(1 - v / .3, 2)})`; ctx.fillRect(0, 0, W, H); } }
+  /* kick brightness pump in the drops */
+  if (inDrop) { ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,230,210,${.1 * kickPulse(t)})`; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; }
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.5)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .07; ctx.fillStyle = ctx.createPattern(grains[f % 3], 'repeat'); ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  const fade = seg(t, DUR - .12, DUR); if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, W, H); }
+}
+let T = 0;
+function render(t) { T = t; if (!cv.width || !grains.length || !IM.koi) return; scene(b, t); compose(t); updateUi(); }
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const BARS = [['鯉', 'これ全部、'], ['鶴', 'AIで描いた。'], ['富', '四季も食も'], ['3', 'カウント'], ...DROP.map(d => [d.kanji, d.word]), ['閃', '描くのは、'], ['君', 'あなた。'], ['鼓', 'AIチャレンジ365'], ['終', 'ロゴ']];
+$('grid').innerHTML = BARS.map(([k, w], i) => `<button data-t="${i * BAR}" class="${i >= 4 && i < 12 || i === 14 ? 'drop' : ''}" title="${w}"><b>${k}</b>${String(i + 1).padStart(2, '0')}</button>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒 · ${barOf(T) + 1}小節 ${beatOf(T) % 4 + 1}拍</small>`;
+  document.querySelectorAll('#grid button').forEach((el, i) => el.classList.toggle('on', i === barOf(T)));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#grid button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + BEAT * 1.2); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), ...[heavy(64), brushF(190)].map(f => document.fonts.load(f, 'これ全部AIで描いた季湯食茶藍福灯祭チャレンジ365'))]).catch(() => {}).then(() => {
+  resize(); render(at(6) + BEAT * .4); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

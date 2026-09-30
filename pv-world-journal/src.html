@@ -1,0 +1,422 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 旅のノート</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap">
+<style>
+/* Layout: the 9:16 player on warm paper beside the itinerary written like a notebook; stacks on phones. */
+:root {
+  --bg: #f4ecdb;
+  --paper: #fbf6ea;
+  --line: #e0d2b4;
+  --ink: #3b2d20;
+  --muted: #86725a;
+  --red: #c8452f;
+  --hand: "Klee One", "Hiragino Maru Gothic ProN", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #1b1510; --paper: #251d16; --line: #3b2f23; --ink: #f1e6d2; --muted: #b19d82; --red: #e06a4f; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #1b1510; --paper: #251d16; --line: #3b2f23; --ink: #f1e6d2; --muted: #b19d82; --red: #e06a4f; color-scheme: dark; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--hand); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.8; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; border-radius: 4px; overflow: hidden; box-shadow: 0 10px 28px rgba(59, 45, 32, .28); transform: rotate(-.6deg); }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font-size: 12px; letter-spacing: .2em; color: var(--red); }
+h1 { font: 600 38px/1.3 var(--hand); margin: 4px 0; }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 44ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 600 13px var(--hand); color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 6px 16px; cursor: pointer; }
+button:hover { border-color: var(--red); }
+button.primary { background: var(--red); border-color: var(--red); color: #fff; min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.tc { font-size: 13px; font-variant-numeric: tabular-nums; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--red); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+ol.note { list-style: none; margin: 0; padding: 4px 0; background: repeating-linear-gradient(var(--paper) 0 33px, var(--line) 33px 34px); border-radius: 6px; }
+ol.note button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; padding: 0 12px; line-height: 34px; cursor: pointer; font-size: 15px; }
+ol.note button:focus-visible { outline: 2px solid var(--red); }
+ol.note .n { color: var(--muted); }
+ol.note .e { color: var(--muted); font-size: 12px; }
+ol.note li.on .n, ol.note li.on span:nth-child(2) { color: var(--red); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 旅のノート"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AI CHALLENGE 365 · 30 SEC · 100 BPM</div>
+      <h1>旅のノート</h1>
+      <p class="lede">古い紙の世界地図に、赤い点線で旅のルートを描いていく30秒。着いた街ごとにポラロイド写真をマスキングテープで貼っていき、最後に12枚がそろいます。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ol class="note" id="note"></ol>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 100, BEAT = 60 / BPM;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const sm = k => k * k * (3 - 2 * k);
+const outC = k => 1 - Math.pow(1 - k, 3);
+const outB = k => { const c = 1.6; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const inOut = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const hand = px => `600 ${px}px "Klee One", "Hiragino Maru Gothic ProN", sans-serif`;
+const B = x => x * BEAT;
+const INK = '#3b2d20', RED = '#c8452f', CREAM = '#fbf3e3';
+
+/* ================= map ================= */
+const LAND = /*LAND*/[];
+const P = (lon, lat) => [(lon + 180) * 10, (85 - lat) * 10];
+const BOX = LAND.map(r => { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (let i = 0; i < r.length; i += 2) { const [x, y] = P(r[i], r[i + 1]); a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); d = Math.max(d, y); } return [a, b, c, d]; });
+
+/* ================= the trip (in beats) ================= */
+const STOPS = [
+  { key: 'window', ja: '出発', en: 'TOKYO', co: 'JAPAN', ll: [139.69, 35.69], at: 3.5, dur: 1 },
+  { key: 'kyoto', ja: '京都', en: 'KYOTO', co: 'JAPAN', ll: [135.78, 34.99], at: 5, dur: 1.5 },
+  { key: 'hongkong', ja: '香港', en: 'HONG KONG', co: 'CHINA', ll: [114.17, 22.32], at: 9, dur: 1.5 },
+  { key: 'dubai', ja: 'ドバイ', en: 'DUBAI', co: 'UAE', ll: [55.27, 25.2], at: 13, dur: 1.5 },
+  { key: 'cappadocia', ja: 'カッパドキア', en: 'CAPPADOCIA', co: 'TURKEY', ll: [34.83, 38.64], at: 17, dur: 1.5 },
+  { key: 'cairo', ja: 'ギザ', en: 'GIZA', co: 'EGYPT', ll: [31.13, 29.98], at: 19, dur: 1 },
+  { key: 'santorini', ja: 'サントリーニ', en: 'SANTORINI', co: 'GREECE', ll: [25.38, 36.46], at: 21, dur: 1 },
+  { key: 'venice', ja: 'ヴェネツィア', en: 'VENICE', co: 'ITALY', ll: [12.33, 45.44], at: 23, dur: 1 },
+  { key: 'paris', ja: 'パリ', en: 'PARIS', co: 'FRANCE', ll: [2.29, 48.86], at: 25, dur: 1 },
+  { key: 'london', ja: 'ロンドン', en: 'LONDON', co: 'UK', ll: [-.12, 51.5], at: 27, dur: 1 },
+  { key: 'iceland', ja: 'アイスランド', en: 'ICELAND', co: 'ICELAND', ll: [-16.18, 64.05], at: 29, dur: 1 },
+  { key: 'newyork', ja: 'ニューヨーク', en: 'NEW YORK', co: 'USA', ll: [-74, 40.71], at: 31, dur: 1 },
+  { key: 'machupicchu', ja: 'マチュピチュ', en: 'MACHU PICCHU', co: 'PERU', ll: [-72.55, -13.16], at: 33, dur: 1 },
+].map((s, i) => {
+  const [x, y] = P(...s.ll), side = i % 2 ? -1 : 1;
+  return { ...s, i, x, y, side, px: x + side * 92, py: y - 118, rot: (hash(i * 7) - .5) * .22, t: B(s.at), ts: B(s.at - s.dur) };
+});
+const GRID = B(37), EARTH = B(41), NAME = B(43), CTA_T = B(45);
+const ZH = 2.3;
+/* each leg arcs toward the north */
+STOPS.forEach((s, i) => {
+  if (!i) return;
+  const a = STOPS[i - 1], mx = (a.x + s.x) / 2, my = (a.y + s.y) / 2, dx = s.x - a.x, dy = s.y - a.y, L = Math.hypot(dx, dy) || 1;
+  let nx = -dy / L, ny = dx / L; if (ny > 0) { nx = -nx; ny = -ny; }
+  s.cx = mx + nx * L * .22; s.cy = my + ny * L * .22; s.len = L;
+});
+const CUES = { bpm: BPM, end: DUR, origin: B(1), arrivals: STOPS.map(s => s.t), legs: STOPS.slice(1).map(s => [s.ts, s.t]), shrink: B(2.5), grid: GRID, earth: EARTH, name: NAME, cta: CTA_T };
+window.CUES = CUES;
+
+/* ================= camera ================= */
+const frameOf_ = s => [s.x + s.side * 46, s.y - 59];
+function cam(t) {
+  if (t < STOPS[1].ts) { const [cx, cy] = frameOf_(STOPS[0]); return { cx, cy, z: ZH }; }
+  for (let i = 1; i < STOPS.length; i++) {
+    const s = STOPS[i], a = STOPS[i - 1];
+    if (t < s.ts) { const [cx, cy] = frameOf_(a); return { cx, cy, z: lerp(ZH, ZH * 1.06, seg(t, a.t, s.ts)) }; }
+    if (t < s.t) {
+      const k = inOut(seg(t, s.ts, s.t)), [ax, ay] = frameOf_(a), [bx, by] = frameOf_(s);
+      const fit = Math.min(540 * .8 / (Math.abs(bx - ax) + 150), 960 * .72 / (Math.abs(by - ay) + 260 + s.len * .22));
+      const zm = Math.min(ZH * .8, fit), z0 = ZH * 1.06;
+      const zl = Math.exp(lerp(Math.log(z0), Math.log(ZH), k)), z = Math.exp(lerp(Math.log(zl), Math.log(zm), Math.sin(Math.PI * k)));
+      return { cx: lerp(ax, bx, k), cy: lerp(ay, by, k), z };
+    }
+  }
+  const last = STOPS[STOPS.length - 1], [lx, ly] = frameOf_(last);
+  if (t < GRID) return { cx: lx, cy: ly, z: lerp(ZH, ZH * 1.08, seg(t, last.t, GRID)) };
+  const k = inOut(seg(t, GRID, GRID + B(3)));
+  return { cx: lerp(lx, 1650, k), cy: lerp(ly, 520, k), z: Math.exp(lerp(Math.log(ZH * 1.08), Math.log(.3), k)) };
+}
+const toScreen = (c, x, y) => [270 + (x - c.cx) * c.z, 480 + (y - c.cy) * c.z];
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+function cover(g, im, x0, y0, w0, h0, z = 1, cx = .5, cy = .5) {
+  const c = Math.max(w0 / im.width, h0 / im.height) * z, w = im.width * c, h = im.height * c;
+  g.drawImage(im, clamp(x0 + w0 / 2 - cx * w, x0 + w0 - w, x0), clamp(y0 + h0 / 2 - cy * h, y0 + h0 - h, y0), w, h);
+}
+
+/* ================= drawing ================= */
+let paperTile = null;
+function makePaper() {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'), im = g.createImageData(256, 256);
+  for (let i = 0; i < im.data.length; i += 4) { const v = 200 + hash(i * .37) * 55; im.data[i] = v; im.data[i + 1] = v * .96; im.data[i + 2] = v * .88; im.data[i + 3] = 255; }
+  g.putImageData(im, 0, 0); paperTile = c;
+}
+function mapLayer(g, c, t) {
+  g.fillStyle = '#efe3c7'; g.fillRect(0, 0, LW, LH);
+  g.save(); g.translate(270, 480); g.scale(c.z, c.z); g.translate(-c.cx, -c.cy);
+  const vx0 = c.cx - 290 / c.z, vx1 = c.cx + 290 / c.z, vy0 = c.cy - 500 / c.z, vy1 = c.cy + 500 / c.z;
+  /* graticule every 15 degrees */
+  g.strokeStyle = 'rgba(122,90,54,.22)'; g.lineWidth = 1 / c.z; g.setLineDash([4 / c.z, 4 / c.z]);
+  g.beginPath();
+  for (let lon = -180; lon <= 180; lon += 15) { const x = (lon + 180) * 10; if (x > vx0 && x < vx1) { g.moveTo(x, Math.max(vy0, 0)); g.lineTo(x, Math.min(vy1, 1450)); } }
+  for (let lat = -60; lat <= 85; lat += 15) { const y = (85 - lat) * 10; if (y > vy0 && y < vy1) { g.moveTo(Math.max(vx0, 0), y); g.lineTo(Math.min(vx1, 3600), y); } }
+  g.stroke(); g.setLineDash([]);
+  /* land */
+  g.beginPath();
+  LAND.forEach((r, i) => {
+    const b = BOX[i]; if (b[2] < vx0 || b[0] > vx1 || b[3] < vy0 || b[1] > vy1) return;
+    if ((b[2] - b[0]) * c.z < .6 && (b[3] - b[1]) * c.z < .6) return;
+    const [x0, y0] = P(r[0], r[1]); g.moveTo(x0, y0);
+    for (let j = 2; j < r.length; j += 2) { const [x, y] = P(r[j], r[j + 1]); g.lineTo(x, y); }
+    g.closePath();
+  });
+  g.fillStyle = '#dcc79d'; g.fill();
+  g.lineJoin = 'round'; g.strokeStyle = 'rgba(92,64,36,.85)'; g.lineWidth = 1.3 / c.z; g.stroke();
+  compass(g, ...P(-38, 28), 60);
+  routeLayer(g, c, t);
+  g.restore();
+  g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = .35; g.fillStyle = g.createPattern(paperTile, 'repeat'); g.fillRect(0, 0, LW, LH); g.restore();
+}
+function compass(g, x, y, r) {
+  g.save(); g.translate(x, y); g.strokeStyle = 'rgba(92,64,36,.6)'; g.fillStyle = 'rgba(200,69,47,.55)'; g.lineWidth = 1.2;
+  g.beginPath(); g.arc(0, 0, r, 0, 7); g.stroke(); g.beginPath(); g.arc(0, 0, r * .8, 0, 7); g.stroke();
+  for (let i = 0; i < 4; i++) { g.save(); g.rotate(i * Math.PI / 2); g.beginPath(); g.moveTo(0, -r * 1.15); g.lineTo(r * .16, 0); g.lineTo(-r * .16, 0); g.closePath(); i ? g.stroke() : g.fill(); g.restore(); }
+  g.font = hand(r * .4); g.fillStyle = 'rgba(92,64,36,.8)'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('N', 0, -r * 1.4);
+  g.restore();
+}
+const bez = (s, p) => { const a = STOPS[s.i - 1], q = 1 - p; return [q * q * a.x + 2 * q * p * s.cx + p * p * s.x, q * q * a.y + 2 * q * p * s.cy + p * p * s.y]; };
+function routeLayer(g, c, t) {
+  g.lineCap = 'round'; g.lineWidth = 3.2 / c.z; g.strokeStyle = RED; g.setLineDash([9 / c.z, 7 / c.z]);
+  let head = null;
+  for (const s of STOPS.slice(1)) {
+    const p = inOut(seg(t, s.ts, s.t)); if (p <= 0) continue;
+    g.beginPath(); const n = 48;
+    for (let j = 0; j <= n; j++) { const [x, y] = bez(s, p * j / n); j ? g.lineTo(x, y) : g.moveTo(x, y); }
+    g.stroke();
+    if (p < 1) { const [x, y] = bez(s, p), [x2, y2] = bez(s, Math.min(1, p + .01)); head = [x, y, Math.atan2(y2 - y, x2 - x)]; }
+  }
+  g.setLineDash([]);
+  /* city dots and handwritten names on the map */
+  for (const s of STOPS) {
+    const u = t - s.t; if (u < 0) continue;
+    const k = outB(seg(u, 0, .3));
+    g.fillStyle = RED; g.beginPath(); g.arc(s.x, s.y, 4.5 / c.z * 2 * k, 0, 7); g.fill();
+    g.strokeStyle = RED; g.lineWidth = 1.5 / c.z; g.beginPath(); g.arc(s.x, s.y, 9 / c.z * 2 * k, 0, 7); g.stroke();
+  }
+  if (head) plane(g, head[0], head[1], head[2], 1.6 / c.z * 1.6);
+}
+function plane(g, x, y, a, s) {
+  g.save(); g.translate(x, y); g.rotate(a); g.scale(s, s);
+  g.fillStyle = INK; g.shadowColor = 'rgba(0,0,0,.25)'; g.shadowBlur = 4;
+  g.beginPath();
+  g.moveTo(11, 0); g.lineTo(-9, -2); g.lineTo(-12, -7); g.lineTo(-14, -7); g.lineTo(-12, -1.5); g.lineTo(-13, -1.5);
+  g.lineTo(-13, 1.5); g.lineTo(-12, 1.5); g.lineTo(-14, 7); g.lineTo(-12, 7); g.lineTo(-9, 2); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(2, -1.5); g.lineTo(-4, -11); g.lineTo(-7, -11); g.lineTo(-3, -1.5); g.moveTo(2, 1.5); g.lineTo(-4, 11); g.lineTo(-7, 11); g.lineTo(-3, 1.5); g.fill();
+  g.restore();
+}
+/* a polaroid centred at (x, y) in the current space, W x H = 136 x 260 at scale 1 */
+const PW = 136, PH = 260, PIW = 120, PIH = 206;
+function polaroid(g, s, x, y, sc, rot, a = 1, lift = 0, frameA = 1) {
+  const im = IM[s.key];
+  g.save(); g.translate(x, y); g.rotate(rot); g.scale(sc, sc); g.globalAlpha = a;
+  g.save(); g.globalAlpha = a * frameA; g.shadowColor = 'rgba(40,25,10,.4)'; g.shadowBlur = 10 + lift; g.shadowOffsetX = 3 + lift * .4; g.shadowOffsetY = 6 + lift;
+  g.fillStyle = '#fbf8f1'; g.fillRect(-PW / 2, -PH / 2, PW, PH); g.restore();
+  if (im) { g.save(); g.beginPath(); g.rect(-PIW / 2, -PH / 2 + 8, PIW, PIH); g.clip(); cover(g, im, -PIW / 2, -PH / 2 + 8, PIW, PIH, 1, .5, .5); g.restore(); }
+  g.globalAlpha = a * frameA;
+  g.font = hand(s.ja.length > 5 ? 15 : 18); g.fillStyle = INK; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(s.ja, 0, PH / 2 - 22);
+  /* masking tape */
+  g.save(); g.translate(0, -PH / 2 + 2); g.rotate(-.08 + hash(s.i * 3) * .16); g.fillStyle = 'rgba(232,214,168,.82)'; g.fillRect(-28, -9, 56, 18);
+  g.strokeStyle = 'rgba(160,130,80,.25)'; g.lineWidth = 1; g.strokeRect(-28, -9, 56, 18); g.restore();
+  g.restore();
+}
+function pinnedPhotos(g, c, t) {
+  g.save(); g.translate(270, 480); g.scale(c.z, c.z); g.translate(-c.cx, -c.cy);
+  for (const s of STOPS) {
+    const u = t - s.t;
+    if (s.i === 0) { if (t >= B(3.5)) polaroid(g, s, s.px, s.py, 1, s.rot); continue; }
+    if (u < 0) continue;
+    if (t >= GRID && s.i > 0) continue;
+    const k = outC(seg(u, 0, .35));
+    polaroid(g, s, s.px, s.py, lerp(1.5, 1, k), s.rot + (1 - k) * .3 * s.side, clamp(u / .1), 16 * (1 - k));
+  }
+  g.restore();
+}
+function footer(g, t) {
+  let cur = null; for (const s of STOPS) if (t >= s.t) cur = s;
+  if (!cur || t >= GRID) return;
+  const nx = STOPS[cur.i + 1], out = nx ? 1 - seg(t, nx.ts, nx.ts + .15) : 1 - seg(t, GRID - .2, GRID);
+  const k = outC(seg(t, cur.t, cur.t + .35)); if (out <= 0) return;
+  g.save(); g.globalAlpha = out * k;
+  const grd = g.createLinearGradient(0, 780, 0, LH); grd.addColorStop(0, 'rgba(239,227,199,0)'); grd.addColorStop(.35, 'rgba(239,227,199,.92)'); grd.addColorStop(1, 'rgba(239,227,199,.96)');
+  g.fillStyle = grd; g.fillRect(0, 780, LW, 180);
+  g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = INK;
+  g.font = hand(48); g.fillText(cur.ja, 40, 868 + (1 - k) * 16);
+  g.font = hand(16); g.fillStyle = RED; g.fillText(`${cur.en} · ${cur.co}`, 42, 916);
+  const [lon, lat] = cur.ll;
+  g.textAlign = 'right'; g.fillStyle = 'rgba(59,45,32,.7)'; g.fillText(`${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}  ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`, 500, 916);
+  g.restore();
+}
+function header(g, t) {
+  if (t < B(3) || t >= GRID) return;
+  let n = 0; for (const s of STOPS) if (s.i && t >= s.t) n = s.i;
+  g.save(); g.globalAlpha = seg(t, B(3), B(3.6)) * (1 - seg(t, GRID - .3, GRID));
+  const grd = g.createLinearGradient(0, 0, 0, 90); grd.addColorStop(0, 'rgba(239,227,199,.9)'); grd.addColorStop(1, 'rgba(239,227,199,0)'); g.fillStyle = grd; g.fillRect(0, 0, LW, 90);
+  g.font = hand(17); g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText('AIチャレンジ365 の旅のノート', 30, 40);
+  g.textAlign = 'right'; g.fillStyle = RED; g.fillText(`${String(n).padStart(2, '0')} / 12`, 510, 40);
+  g.restore();
+}
+function written(g, text, x, y, px, t0, t, fill = INK, shadow = null) {
+  g.save(); g.font = hand(px); g.textBaseline = 'middle'; g.textAlign = 'left';
+  const w = g.measureText(text).width; let xx = x - w / 2, n = 0;
+  if (shadow) { g.shadowColor = shadow; g.shadowBlur = 14; }
+  for (const ch of text) { const k = sm(seg(t, t0 + n * .045, t0 + n * .045 + .28)); if (k > 0) { g.globalAlpha = k; g.fillStyle = fill; g.fillText(ch, xx, y + (1 - k) * 5); } xx += g.measureText(ch).width; n++; }
+  g.restore();
+}
+
+/* ================= scenes ================= */
+function intro(g, t) {
+  /* full-screen window, then it shrinks into the first polaroid pinned on Tokyo */
+  const k = inOut(seg(t, B(2.5), B(3.5)));
+  const s = STOPS[0], c = cam(t);
+  if (k > 0) mapLayer(g, c, t);
+  const [px, py] = toScreen(c, s.px, s.py - PH / 2 + 8 + PIH / 2), iw = PIW * c.z, ih = PIH * c.z;
+  const x = lerp(0, px - iw / 2, k), y = lerp(0, py - ih / 2, k), w = lerp(LW, iw, k), h = lerp(LH, ih, k);
+  if (k > .6) { const fr = seg(k, .6, 1); g.save(); g.translate(270, 480); g.scale(c.z, c.z); g.translate(-c.cx, -c.cy); polaroid(g, s, s.px, s.py, 1, s.rot * fr, 1, 0, fr); g.restore(); }
+  else { g.save(); g.translate(x + w / 2, y + h / 2); g.rotate(s.rot * k); if (IM.window) cover(g, IM.window, -w / 2, -h / 2, w, h, lerp(1.06, 1, k)); g.restore(); }
+}
+/* the opening line stays from the window until Kyoto, turning from white to ink as the map appears */
+function openingLine(g, t) {
+  const o = 1 - seg(t, STOPS[1].t - .25, STOPS[1].t); if (o <= 0) return;
+  const k = seg(t, B(2.6), B(3.4));
+  g.save(); g.globalAlpha = o;
+  const band = g.createLinearGradient(0, 640, 0, 800); band.addColorStop(0, 'rgba(30,15,0,0)'); band.addColorStop(.5, `rgba(30,15,0,${.35 * (1 - k)})`); band.addColorStop(1, 'rgba(30,15,0,0)');
+  g.fillStyle = band; g.fillRect(0, 640, LW, 160);
+  if (k < 1) { g.save(); g.globalAlpha = o * (1 - k); written(g, '次は、どこへ行こう。', 270, 720, 40, .15, t, '#fff', 'rgba(40,20,0,.9)'); g.restore(); }
+  if (k > 0) { g.save(); g.globalAlpha = o * k; written(g, '次は、どこへ行こう。', 270, 720, 40, .15, t, INK, 'rgba(239,227,199,1)'); g.restore(); }
+  g.restore();
+}
+function gridScene(g, t) {
+  const c = cam(t);
+  mapLayer(g, c, t);
+  g.fillStyle = `rgba(239,227,199,${.55 * seg(t, GRID, GRID + .6)})`; g.fillRect(0, 0, LW, LH);
+  const c0 = cam(GRID - 1e-3), cities = STOPS.slice(1);
+  const out = seg(t, EARTH, EARTH + .7);
+  cities.forEach((s, i) => {
+    const col = i % 4, row = Math.floor(i / 4), gx = 81 + col * 126, gy = 300 + row * 234;
+    const [fx, fy] = toScreen(c0, s.px, s.py), k = outC(seg(t, GRID + i * .06, GRID + i * .06 + .7));
+    const sc = lerp(c0.z, 118 / PW, k) * lerp(1, .7, sm(out)), rot = lerp(s.rot, (hash(i * 5) - .5) * .08, k);
+    const x = lerp(fx, gx, k), y = lerp(fy, gy, k);
+    polaroid(g, s, lerp(270, x, 1 - .3 * sm(out)), lerp(480, y, 1 - .3 * sm(out)), sc, rot, 1 - sm(out), 8 * Math.sin(Math.PI * k));
+  });
+  if (out < 1) { g.save(); g.globalAlpha = 1 - out; written(g, '12の街を、ぜんぶ', 270, 92, 34, GRID + .5, t); written(g, 'AIで旅した。', 270, 145, 40, B(39), t, RED); g.restore(); }
+}
+function earthScene(g, t) {
+  const k = sm(seg(t, EARTH, EARTH + .8));
+  if (k < 1) gridScene(g, t);
+  g.save(); g.globalAlpha = k;
+  if (IM.earth) cover(g, IM.earth, 0, 0, LW, LH, lerp(1.2, 1.05, outC(seg(t, EARTH, DUR))), .5, .62);
+  g.restore();
+  if (t > EARTH + .3) {
+    written(g, '次は、あなたの番。', 270, 230, 36, EARTH + .5, t, CREAM, 'rgba(0,0,0,.8)');
+    const n = sm(seg(t, NAME, NAME + .8));
+    g.save(); g.globalAlpha = n; g.font = hand(54); g.textAlign = 'center'; g.textBaseline = 'middle'; g.shadowColor = 'rgba(255,170,90,.7)'; g.shadowBlur = 28; g.fillStyle = '#fff';
+    g.fillText('AIチャレンジ365', 270, 320 + (1 - n) * 10); g.restore();
+    const ck = seg(t, CTA_T, CTA_T + .35);
+    if (ck > 0) {
+      const s2 = lerp(1.25, 1, outB(ck));
+      g.save(); g.translate(270, 410); g.rotate(-.02); g.scale(s2, s2); g.globalAlpha = clamp(ck * 3);
+      g.fillStyle = CREAM; g.shadowColor = 'rgba(0,0,0,.4)'; g.shadowBlur = 14; g.fillRect(-168, -28, 336, 56); g.shadowBlur = 0;
+      g.fillStyle = 'rgba(232,214,168,.9)'; g.fillRect(-190, -34, 40, 16); g.fillRect(150, 18, 40, 16);
+      g.fillStyle = RED; g.font = hand(22); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('プロフィールのリンクから', 0, 1);
+      g.restore();
+    }
+  }
+}
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  if (t < B(3.5)) intro(g, t);
+  else if (t >= EARTH) earthScene(g, t);
+  else if (t >= GRID) gridScene(g, t);
+  else { const c = cam(t); mapLayer(g, c, t); pinnedPhotos(g, c, t); }
+  openingLine(g, t); header(g, t); footer(g, t);
+}
+
+/* ================= frame ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+let S = 1;
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  cv.width = w; cv.height = Math.round(w * 16 / 9); S = w / LW;
+  render(T);
+}
+let T = 0;
+function render(t) {
+  T = t; if (!cv.width || !paperTile || !IM.paris) return;
+  scene(ctx, t);
+  const W = cv.width, H = cv.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * .32, W / 2, H / 2, H * .72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(60,35,10,.35)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  const bl = Math.max(1 - seg(t, 0, .35), seg(t, DUR - .5, DUR)); if (bl > 0) { ctx.fillStyle = `rgba(0,0,0,${bl})`; ctx.fillRect(0, 0, W, H); }
+  updateUi();
+}
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const LIST = [[0, '—', '出発', 'TOKYO'], ...STOPS.slice(1).map(s => [s.t, String(s.i).padStart(2, '0'), s.ja, s.en]), [GRID, '12', 'ぜんぶの写真', ''], [EARTH, '→', '次は、あなたの番', '']];
+$('note').innerHTML = LIST.map(([t, n, j, e]) => `<li><button data-t="${t}"><span class="n">${n}</span><span>${j}</span><span class="e">${e}</span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = 0; LIST.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#note li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#note button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + .5); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+makePaper();
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), document.fonts.load(hand(40), '次は、どこへ行こう。AIチャレンジ365')]).catch(() => {}).then(() => {
+  resize(); render(B(25.5)); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

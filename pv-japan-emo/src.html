@@ -1,0 +1,365 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 365日</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap">
+<style>
+/* Layout: the 9:16 player beside a small "album" of scenes, warm film-paper tones; stacks on phones. */
+:root {
+  --bg: #f3ece1;
+  --paper: #fbf7f0;
+  --line: #e2d6c4;
+  --ink: #3a2f27;
+  --muted: #8b7b6b;
+  --amber: #d9772b;
+  --hand: "Klee One", "Hiragino Maru Gothic ProN", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #17120e; --paper: #211a15; --line: #3a2f27; --ink: #f1e6d6; --muted: #a8977f; --amber: #f0954a; }
+}
+:root[data-theme="dark"] { --bg: #17120e; --paper: #211a15; --line: #3a2f27; --ink: #f1e6d6; --muted: #a8977f; --amber: #f0954a; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--hand); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.8; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; border-radius: 6px; overflow: hidden; box-shadow: 0 10px 30px rgba(60, 40, 20, .25); }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font-size: 12px; letter-spacing: .25em; color: var(--muted); }
+h1 { font: 600 40px/1.2 var(--hand); margin: 6px 0; }
+h1 span { color: var(--amber); }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 42ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 600 13px var(--hand); color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 7px 16px; cursor: pointer; }
+button:hover { border-color: var(--amber); }
+button.primary { background: var(--amber); border-color: var(--amber); color: #fff; min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.tc { font-size: 13px; font-variant-numeric: tabular-nums; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--amber); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+ol.album { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 14px; }
+ol.album button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+ol.album button:focus-visible { outline: 2px solid var(--amber); }
+ol.album .d { color: var(--amber); font-variant-numeric: tabular-nums; }
+ol.album li.on button { background: var(--paper); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 365日"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AI CHALLENGE 365 · 30 SEC · 80 BPM</div>
+      <h1>365日<span>。</span></h1>
+      <p class="lede">古いフィルムカメラの日付みたいに、DAY 001 から 365 まで数字が進んでいく30秒。あたたかい光のもれと手書きの言葉で、つづけてきた日々をふり返ります。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ol class="album" id="album"></ol>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 80, BEAT = 60 / BPM;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const sm = k => k * k * (3 - 2 * k);
+const outC = k => 1 - Math.pow(1 - k, 3);
+const outB = k => { const c = 1.4; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const inOut = k => -(Math.cos(Math.PI * k) - 1) / 2;
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const hand = (w, px) => `${w} ${px}px "Klee One", "Hiragino Maru Gothic ProN", sans-serif`;
+const CREAM = '#fbf3e6', AMBER = '#ff9a3c';
+const B = x => x * BEAT;
+
+/* ================= story (in beats) ================= */
+const SHOTS = [
+  { a: 0, b: 6, key: 'street', from: [.3, .55, 1.2], to: [.34, .5, 1.05], lines: ['はじめた日のこと、', '覚えてる？'], day: 1 },
+  { a: 6, b: 11, key: 'bamboo', from: [.5, .6, 1.05], to: [.5, .5, 1.18], lines: ['何を作ればいいか、', 'わからなかった。'], day: 12 },
+  { a: 11, b: 16, key: 'onsen', from: [.5, .45, 1.2], to: [.5, .55, 1.06], lines: ['うまくいかない夜も、', 'あった。'], day: 97 },
+  { a: 16, b: 21, key: 'festival', from: [.55, .5, 1.05], to: [.62, .45, 1.16], lines: ['それでも、', '明日も作った。'], day: 186 },
+  { a: 21, b: 28, key: 'album' },
+  { a: 28, b: 34, key: 'samurai', from: [.33, .5, 1.3], to: [.28, .52, 1.08], lines: ['気づけば、', 'ここまで来ていた。'], day: 365 },
+].map(s => ({ ...s, t: B(s.a), e: B(s.b) }));
+const LOGO = B(34), NAME = B(36);
+/* prints fall faster and faster onto the table */
+const PRINTS = ['cranes', 'koi', 'maneki', 'matcha', 'sushi', 'momiji', 'indigo', 'taiko', 'torii', 'fuji'].map((key, i, a) => {
+  const k = i / a.length, t = B(21) + B(6) * (1 - Math.pow(1 - k, 1.5));
+  const ang = (hash(i * 5 + 2) - .5) * .5, x = 270 + (hash(i * 9 + 1) - .5) * 250, y = 470 + (hash(i * 3 + 7) - .5) * 360;
+  return { key, t, ang, x, y, day: Math.round(190 + (363 - 190) * (i + 1) / a.length) };
+});
+const CUES = { bpm: BPM, end: DUR, cuts: [B(6), B(11), B(16), B(21)], prints: PRINTS.map(p => p.t), breath: B(27), climax: B(28), logo: LOGO, name: NAME, cta: NAME + B(1.5) };
+window.CUES = CUES;
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+function cover(g, im, cx, cy, z, x0 = 0, y0 = 0, w0 = LW, h0 = LH) {
+  const c = Math.max(w0 / im.width, h0 / im.height) * z, w = im.width * c, h = im.height * c;
+  g.drawImage(im, clamp(x0 + w0 / 2 - cx * w, x0 + w0 - w, x0), clamp(y0 + h0 / 2 - cy * h, y0 + h0 - h, y0), w, h);
+}
+function shotPic(g, s, t) {
+  const im = IM[s.key]; if (!im) return;
+  const k = inOut(clamp((t - s.t + .4) / (s.e - s.t + 1.2)));
+  cover(g, im, lerp(s.from[0], s.to[0], k), lerp(s.from[1], s.to[1], k), lerp(s.from[2], s.to[2], k));
+}
+
+/* ================= handwriting ================= */
+/* each character fades in and settles as if written, left to right, line by line */
+function written(g, lines, t0, t, out, y = 700, px = 33) {
+  g.save(); g.font = hand(600, px); g.textBaseline = 'middle'; g.textAlign = 'left';
+  let n = 0;
+  lines.forEach((ln, li) => {
+    const w = g.measureText(ln).width, x0 = 270 - w / 2 + (li ? 22 : -22), yy = y + li * px * 1.7;
+    let x = x0;
+    for (const c of ln) {
+      const cw = g.measureText(c).width, st = t0 + n * .075 + li * .25, k = sm(seg(t, st, st + .45));
+      if (k > 0) {
+        g.globalAlpha = k * out; g.shadowColor = 'rgba(30,15,5,.85)'; g.shadowBlur = 14;
+        g.fillStyle = CREAM; g.fillText(c, x, yy + (1 - k) * 6);
+      }
+      x += cw; n++;
+    }
+  });
+  g.restore();
+}
+
+/* ================= date stamp (seven segment, like an old film camera) ================= */
+const SEG = { '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg', '5': 'acdfg', '6': 'acdefg', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', 'd': 'bcdeg', 'A': 'abcefg', 'y': 'bcdfg', ' ': '' };
+function segChar(g, ch, x, y, h) {
+  const w = h * .5, s = h * .09, sk = h * .12, P = (px, py) => [x + px * w + (1 - py) * sk, y + py * h];
+  const L = { a: [[0, 0], [1, 0]], b: [[1, 0], [1, .5]], c: [[1, .5], [1, 1]], d: [[0, 1], [1, 1]], e: [[0, .5], [0, 1]], f: [[0, 0], [0, .5]], g: [[0, .5], [1, .5]] };
+  g.lineWidth = s; g.lineCap = 'round';
+  for (const k of SEG[ch] || '') {
+    const [p, q] = L[k], a = P(...p), b = P(...q), ix = (b[0] - a[0]) * .14, iy = (b[1] - a[1]) * .14;
+    g.beginPath(); g.moveTo(a[0] + ix, a[1] + iy); g.lineTo(b[0] - ix, b[1] - iy); g.stroke();
+  }
+}
+function stamp(g, text, x, y, h, a = 1) {
+  g.save(); g.globalAlpha = a; g.strokeStyle = AMBER; g.shadowColor = 'rgba(255,110,20,.9)'; g.shadowBlur = h * .5;
+  g.globalCompositeOperation = 'lighter';
+  [...text].forEach((c, i) => segChar(g, c, x + i * h * .72, y, h));
+  g.restore();
+}
+const dayText = n => `dAy ${String(n).padStart(3, '0')}`;
+function dayAt(t) {
+  if (t >= B(28)) return 365;
+  if (t >= B(21)) return Math.min(364, Math.round(lerp(187, 364, 1 - Math.pow(1 - seg(t, B(21), B(27)), 1.5))));
+  const s = SHOTS.find(s => t >= s.t && t < s.e); return s ? s.day : 1;
+}
+
+/* ================= the album: prints landing on a table ================= */
+let tableBg = null;
+function makeTable() {
+  const c = document.createElement('canvas'); c.width = LW; c.height = LH; const g = c.getContext('2d');
+  g.fillStyle = '#1b130d'; g.fillRect(0, 0, LW, LH);
+  if (IM.festival) { g.save(); g.filter = 'blur(22px) brightness(.42) saturate(1.3)'; cover(g, IM.festival, .5, .35, 1.2); g.restore(); }
+  const v = g.createRadialGradient(270, 480, 120, 270, 480, 620); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = v; g.fillRect(0, 0, LW, LH);
+  tableBg = c;
+}
+function print(g, p, t) {
+  const u = t - p.t; if (u < 0) return;
+  const k = outC(seg(u, 0, .38)), land = seg(u, .3, .5);
+  const sc = lerp(1.45, 1, k), lift = (1 - k) * 26, W = 232, H = 282, ph = 208;
+  g.save(); g.translate(p.x, p.y); g.rotate(p.ang + (1 - k) * .25); g.scale(sc, sc);
+  g.globalAlpha = clamp(u / .12);
+  g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 14 + lift; g.shadowOffsetX = 4 + lift * .6; g.shadowOffsetY = 8 + lift;
+  g.fillStyle = '#f6efe2'; g.fillRect(-W / 2, -H / 2, W, H);
+  g.shadowColor = 'transparent';
+  const im = IM[p.key];
+  if (im) { g.save(); g.beginPath(); g.rect(-W / 2 + 12, -H / 2 + 12, W - 24, ph); g.clip(); cover(g, im, .5, .5, 1, -W / 2 + 12, -H / 2 + 12, W - 24, ph); g.restore(); }
+  /* the flash of the shutter on a fresh print */
+  const fl = 1 - seg(u, 0, .25); if (fl > 0) { g.fillStyle = `rgba(255,248,235,${fl * .8})`; g.fillRect(-W / 2 + 12, -H / 2 + 12, W - 24, ph); }
+  g.globalAlpha = clamp(land * 1.5) * g.globalAlpha;
+  g.font = hand(600, 20); g.fillStyle = '#5a4636'; g.textAlign = 'right'; g.textBaseline = 'middle';
+  g.fillText(`DAY ${p.day}`, W / 2 - 18, H / 2 - 30);
+  g.restore();
+}
+function album(g, t) {
+  const u = seg(t, B(21), B(28));
+  g.drawImage(tableBg, 0, 0);
+  const z = lerp(1.18, .9, inOut(u));
+  g.save(); g.translate(270, 480); g.scale(z, z); g.rotate(lerp(.03, -.02, u)); g.translate(-270, -480);
+  for (const p of PRINTS) print(g, p, t);
+  g.restore();
+  /* a line while the pile grows */
+  const o = 1 - sm(seg(t, B(26.3), B(27)));
+  if (o > 0) written(g, ['一日、ひとつ。'], B(21) + .3, t, o, 850, 28);
+}
+
+/* ================= light: leaks, halation, dust ================= */
+function leak(g, t, a, seed, cx = null, cy = null) {
+  if (a <= 0) return;
+  const x = cx ?? lerp(-60, 600, hash(seed)) + Math.sin(t * .7 + seed) * 60, y = cy ?? lerp(80, 880, hash(seed + 1)) + Math.cos(t * .5 + seed) * 80;
+  const r = 320 + hash(seed + 2) * 260;
+  g.save(); g.globalCompositeOperation = 'screen';
+  const gr = g.createRadialGradient(x, y, 0, x, y, r);
+  gr.addColorStop(0, `rgba(255,190,110,${.85 * a})`); gr.addColorStop(.35, `rgba(255,110,40,${.5 * a})`); gr.addColorStop(1, 'rgba(180,30,10,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, LW, LH); g.restore();
+}
+
+/* ================= scenes ================= */
+function drawShot(g, s, t) {
+  if (s.key === 'album') { album(g, t); return; }
+  shotPic(g, s, t);
+  const out = 1 - sm(seg(t, s.e - .55, s.e - .1));
+  const band = g.createLinearGradient(0, 560, 0, LH); band.addColorStop(0, 'rgba(20,10,4,0)'); band.addColorStop(.45, 'rgba(20,10,4,.5)'); band.addColorStop(1, 'rgba(20,10,4,.7)');
+  g.fillStyle = band; g.fillRect(0, 560, LW, LH - 560);
+  written(g, s.lines, s.t + (s.a === 0 ? .6 : .5), t, out, s.key === 'samurai' ? 690 : 720);
+}
+function logo(g, t) {
+  const u = t - LOGO;
+  g.fillStyle = '#140d09'; g.fillRect(0, 0, LW, LH);
+  leak(g, t, .55 * sm(seg(u, 0, 1.2)), 5, 60 + u * 20, 180);
+  leak(g, t, .4 * sm(seg(u, .6, 2)), 8, 500, 820 - u * 25);
+  written(g, ['明日も、ひとつ。'], LOGO + .35, t, 1, 380, 30);
+  const k = sm(seg(t, NAME, NAME + .9));
+  g.save(); g.globalAlpha = k; g.font = hand(600, 50); g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = 'rgba(255,140,50,.55)'; g.shadowBlur = 26 * k; g.fillStyle = CREAM;
+  g.fillText('AIチャレンジ365', 270, 490 + (1 - k) * 10); g.restore();
+  const ck = sm(seg(t, CUES.cta, CUES.cta + .8));
+  g.save(); g.globalAlpha = ck; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = AMBER; g.fillRect(270 - 90 * ck, 548, 180 * ck, 1.5);
+  g.font = hand(600, 20); g.fillStyle = 'rgba(251,243,230,.85)'; g.fillText('プロフィールのリンクから', 270, 600);
+  g.restore();
+}
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.filter = 'none';
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  /* a slow gate weave */
+  const f = frameOf(t); g.translate((hash(f) - .5) * 1.2, (hash(f + 9) - .5) * 1.4);
+  const XF = .8;
+  if (t >= LOGO) {
+    const k = sm(seg(t, LOGO, LOGO + 1.1));
+    if (k < 1) { drawShot(g, SHOTS[5], t); g.globalAlpha = k; logo(g, t); g.globalAlpha = 1; }
+    else logo(g, t);
+  } else {
+    const i = SHOTS.findIndex(s => t >= s.t && t < s.e), s = SHOTS[i];
+    const k = sm(seg(t, s.t - XF / 2, s.t + XF / 2));
+    if (i > 0 && k < 1 && s.key !== 'samurai') {
+      drawShot(g, SHOTS[i - 1], t); g.save(); g.globalAlpha = k; drawOff(g, s, t); g.restore();
+    } else drawShot(g, s, t);
+    /* one breath of white light into the last shot */
+    if (s.key === 'samurai') { const w = 1 - sm(seg(t, s.t, s.t + 1.4)); if (w > 0) { g.fillStyle = `rgba(255,236,205,${w})`; g.fillRect(-10, -10, LW + 20, LH + 20); } }
+    if (s.key === 'album' && t > B(27)) { const w = sm(seg(t, B(27), B(28))); g.fillStyle = `rgba(255,236,205,${w})`; g.fillRect(-10, -10, LW + 20, LH + 20); }
+  }
+  /* leaks: a wandering glow all the way through, a burst at every cut */
+  leak(g, t, .22 + .08 * Math.sin(t * 1.3), 1);
+  for (const [n, c] of CUES.cuts.entries()) { const v = t - c; if (v > -.6 && v < .9) leak(g, t, (1 - Math.abs(v + .05) / .9) * .9, 20 + n * 3, n % 2 ? 480 : 40, 200 + n * 170); }
+  if (t > B(28) && t < LOGO) leak(g, t, .35 * sm(seg(t, B(28), B(30))), 40, 60, 330);
+  /* the date stamp */
+  if (t < LOGO + .5) {
+    const d = dayAt(t), blink = t >= B(28) ? (Math.floor((t - B(28)) * 2.4) % 2 ? .45 : 1) : 1;
+    stamp(g, dayText(d), 318, 868, 26, blink * (1 - seg(t, LOGO, LOGO + .5)));
+  }
+  g.setTransform(S, 0, 0, S, 0, 0);
+}
+/* crossfading a scene needs its own canvas so text shadows and prints fade as one picture */
+const off = document.createElement('canvas'), og = off.getContext('2d');
+function drawOff(g, s, t) {
+  og.setTransform(S, 0, 0, S, 0, 0); og.globalAlpha = 1; og.clearRect(0, 0, LW, LH);
+  drawShot(og, s, t);
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(off, 0, 0); g.restore();
+}
+
+/* ================= frame ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const buf = document.createElement('canvas'), b = buf.getContext('2d');
+let S = 1, grains = [];
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  const h = Math.round(w * 16 / 9);
+  for (const c of [cv, buf, off]) { c.width = w; c.height = h; }
+  S = w / LW;
+  grains = [0, 1, 2, 3].map(k => { const c = document.createElement('canvas'); c.width = c.height = 160; const g = c.getContext('2d'), im = g.createImageData(160, 160); for (let i = 0; i < im.data.length; i += 4) { const v = hash(i * .51 + k * 17) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; } g.putImageData(im, 0, 0); return c; });
+  makeTable();
+  render(T);
+}
+function compose(t) {
+  const W = cv.width, H = cv.height, f = frameOf(t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  /* a faint flicker of the projector lamp */
+  const fl = 1 + (hash(f * .7) - .5) * .035;
+  ctx.drawImage(buf, 0, 0);
+  if (fl > 1) { ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,230,200,${(fl - 1) * 2})`; ctx.fillRect(0, 0, W, H); }
+  else { ctx.fillStyle = `rgba(0,0,0,${(1 - fl) * 2})`; ctx.fillRect(0, 0, W, H); }
+  /* halation: the highlights bleed warm */
+  if ('filter' in ctx) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .32; ctx.filter = `blur(${12 * S}px) sepia(1) saturate(4) hue-rotate(-18deg) brightness(.8)`; ctx.drawImage(buf, 0, 0); ctx.restore(); ctx.filter = 'none'; }
+  ctx.globalCompositeOperation = 'source-over';
+  /* dust and the odd scratch */
+  ctx.fillStyle = 'rgba(20,12,6,.55)';
+  for (let i = 0; i < 7; i++) { if (hash(f * 13 + i) > .55) continue; const x = hash(f * 3 + i * 7) * W, y = hash(f * 5 + i * 11) * H, r = (.6 + hash(f + i) * 1.6) * S; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
+  if (hash(Math.floor(f / 4) * 1.3) > .7) { const x = hash(Math.floor(f / 4)) * W; ctx.fillStyle = 'rgba(255,240,220,.18)'; ctx.fillRect(x, 0, S * .8, H); }
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * .22, W / 2, H / 2, H * .7); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(25,10,0,.62)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .16; ctx.fillStyle = ctx.createPattern(grains[f % 4], 'repeat'); ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  const inn = 1 - seg(t, 0, .8), fade = seg(t, DUR - .6, DUR), bl = Math.max(inn, fade);
+  if (bl > 0) { ctx.fillStyle = `rgba(0,0,0,${bl})`; ctx.fillRect(0, 0, W, H); }
+}
+let T = 0;
+function render(t) { T = t; if (!cv.width || !grains.length || !IM.street || !tableBg) return; scene(b, t); compose(t); updateUi(); }
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const LIST = [[0, '001', 'はじめた日'], [B(6), '012', 'わからなかった'], [B(11), '097', 'うまくいかない夜'], [B(16), '186', 'それでも'], [B(21), '187→', '一日、ひとつ'], [B(28), '365', 'ここまで来ていた'], [LOGO, '366', '明日も、ひとつ']];
+$('album').innerHTML = LIST.map(([t, d, n]) => `<li><button data-t="${t}"><span class="d">DAY ${d}</span><span>${n}</span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = 0; LIST.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#album li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#album button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + 1.6); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), document.fonts.load(hand(600, 30), 'はじめた日のこと、覚えてる？AIチャレンジ365')]).catch(() => {}).then(() => {
+  resize(); render(B(24.5)); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

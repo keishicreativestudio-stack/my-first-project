@@ -1,0 +1,379 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 POP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;800&display=swap">
+<style>
+/* Layout: the 9:16 player beside a sticker-sheet list of scenes; candy colours, hard shadows; stacks on phones. */
+:root {
+  --bg: #fff6e5;
+  --card: #ffffff;
+  --ink: #1d1a2f;
+  --muted: #6b6480;
+  --pink: #ff4f9a;
+  --yellow: #ffd23f;
+  --cyan: #3ec7ff;
+  --round: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
+  --pop: "Dela Gothic One", "M PLUS Rounded 1c", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #1d1a2f; --card: #2a2640; --ink: #fff6e5; --muted: #b9b2cf; }
+}
+:root[data-theme="dark"] { --bg: #1d1a2f; --card: #2a2640; --ink: #fff6e5; --muted: #b9b2cf; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--round); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.7; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; border-radius: 18px; overflow: hidden; border: 3px solid #1d1a2f; box-shadow: 8px 8px 0 #1d1a2f; }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font: 800 12px var(--round); letter-spacing: .2em; color: var(--pink); }
+h1 { font: 400 46px/1.1 var(--pop); margin: 6px 0; }
+h1 span { color: var(--pink); }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 42ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 800 13px var(--round); color: #1d1a2f; background: #fff; border: 2px solid #1d1a2f; border-radius: 999px; padding: 6px 16px; cursor: pointer; box-shadow: 3px 3px 0 #1d1a2f; }
+button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #1d1a2f; }
+button.primary { background: var(--yellow); min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.tc { font: 800 13px var(--round); font-variant-numeric: tabular-nums; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--pink); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+ul.sheet { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+ul.sheet button { box-shadow: 2px 2px 0 #1d1a2f; padding: 4px 12px; font-size: 13px; }
+ul.sheet li.on button { background: var(--pink); color: #fff; }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 POP"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AI CHALLENGE 365 · 30 SEC · 128 BPM</div>
+      <h1>POP<span>!</span></h1>
+      <p class="lede">写真をシールみたいに切りぬいて、ビートに合わせてポンポン貼っていく30秒。背景は1拍ごとに色が変わり、最後は紙吹雪でしめます。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ul class="sheet" id="sheet"></ul>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 128, BEAT = 60 / BPM;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const sm = k => k * k * (3 - 2 * k);
+const outC = k => 1 - Math.pow(1 - k, 3);
+const outB = k => { const c = 2.2; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const popF = px => `400 ${px}px "Dela Gothic One", "M PLUS Rounded 1c", sans-serif`;
+const roundF = px => `800 ${px}px "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif`;
+const B = x => x * BEAT;
+const INK = '#1d1a2f', CREAM = '#fff6e5';
+const PAL = ['#ff4f9a', '#ffd23f', '#3ec7ff', '#3ee0a8', '#8a5cff', '#ff7a3d'];
+/* a bounce with squash and stretch: returns [sx, sy] */
+function boing(u, dur = .5) {
+  const k = clamp(u / dur); if (k <= 0) return [0, 0];
+  const s = 1 - Math.exp(-7 * k) * Math.cos(13 * k);
+  const w = Math.exp(-5 * k) * Math.sin(16 * k) * .28;
+  return [s * (1 - w), s * (1 + w)];
+}
+/* a small squash on every beat */
+const beatPulse = t => { const v = (t / BEAT) % 1; return 1 + .045 * Math.exp(-v * 9); };
+
+/* ================= timeline (in beats) ================= */
+const INTRO = [[0, 'ねぇ、'], [2, 'AIって'], [4, 'こんなに'], [6, 'たのしい！']];
+const DAILY = [{ b: 8, text: '毎日ひとつ、' }, { b: 12, text: 'つくってみた！' }];
+const DAILY_ST = [['maneki', 9, 110, 250, -.2, 'circle'], ['sushi', 10, 420, 300, .15, 'round'], ['koi', 11, 150, 720, .12, 'flower'],
+  ['matcha', 13, 410, 700, -.12, 'circle'], ['cranes', 14, 120, 470, .1, 'star'], ['fuji', 15, 430, 480, -.15, 'round']];
+const SHAPES = ['circle', 'round', 'flower', 'star', 'blob', 'heart'];
+const MONTAGE = [['sushi', 'すし！'], ['matcha', 'まっちゃ！'], ['koi', 'こい！'], ['maneki', 'まねき！'], ['festival', 'まつり！'], ['fuji', 'ふじさん！'],
+  ['momiji', 'もみじ！'], ['taiko', 'たいこ！'], ['cranes', 'おりづる！'], ['street', 'まちなみ！'], ['indigo', 'あいぞめ！'], ['bamboo', 'たけやぶ！']]
+  .map(([key, word], i) => ({ key, word, b: 16 + i * 2, shape: SHAPES[i % SHAPES.length], col: PAL[i % PAL.length], day: [3, 17, 42, 66, 91, 120, 150, 181, 212, 250, 288, 330][i] }));
+const GRID = ['sushi', 'matcha', 'koi', 'maneki', 'festival', 'fuji', 'momiji', 'taiko', 'cranes', 'street', 'indigo', 'bamboo', 'onsen', 'torii', 'samurai']
+  .map((key, i) => ({ key, b: 40 + i * .25, x: 90 + (i % 3) * 180, y: 170 + Math.floor(i / 3) * 150, shape: SHAPES[i % SHAPES.length], ang: (hash(i * 3) - .5) * .4 }));
+const OUTRO = [[48, 'AIで、'], [50, '毎日が'], [52, 'ちょっと'], [54, 'たのしくなる！']];
+const LOGO = 56;
+const CUES = {
+  bpm: BPM, end: DUR,
+  pops: [...INTRO.map(w => B(w[0])), ...DAILY_ST.map(s => B(s[1])), ...MONTAGE.map(m => B(m.b)), ...GRID.map(g => B(g.b))],
+  words: [...DAILY.map(d => B(d.b)), ...MONTAGE.map(m => B(m.b + .5)), ...OUTRO.map(w => B(w[0]))],
+  wipes: MONTAGE.map(m => B(m.b)), grid: B(40), counter: [B(44), B(47.5)], build: B(52), drop: B(LOGO), cta: B(LOGO + 3)
+};
+window.CUES = CUES;
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+function cover(g, im, cx, cy, z, x0, y0, w0, h0) {
+  const c = Math.max(w0 / im.width, h0 / im.height) * z, w = im.width * c, h = im.height * c;
+  g.drawImage(im, clamp(x0 + w0 / 2 - cx * w, x0 + w0 - w, x0), clamp(y0 + h0 / 2 - cy * h, y0 + h0 - h, y0), w, h);
+}
+
+/* ================= stickers ================= */
+function shapePath(g, shape, r) {
+  g.beginPath();
+  if (shape === 'circle') g.arc(0, 0, r, 0, Math.PI * 2);
+  else if (shape === 'round') g.roundRect(-r, -r * .9, r * 2, r * 1.8, r * .28);
+  else if (shape === 'flower') { for (let i = 0; i <= 120; i++) { const a = i / 120 * Math.PI * 2, rr = r * (.9 + .1 * Math.cos(a * 10)); g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } }
+  else if (shape === 'star') { for (let i = 0; i <= 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .62 : r * 1.12; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } }
+  else if (shape === 'blob') { for (let i = 0; i <= 120; i++) { const a = i / 120 * Math.PI * 2, rr = r * (1 + .08 * Math.sin(a * 3 + 1) + .05 * Math.cos(a * 5)); g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } }
+  else if (shape === 'heart') { const s = r / 16; for (let i = 0; i <= 120; i++) { const a = i / 120 * Math.PI * 2, x = 16 * Math.pow(Math.sin(a), 3), y = -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)); g.lineTo(x * s * 1.05, (y + 2) * s * 1.05); } }
+  g.closePath();
+}
+/* white border, ink outline, flat hard shadow */
+function sticker(g, key, shape, x, y, r, ang, sx, sy) {
+  if (sx <= 0) return;
+  const im = IM[key];
+  g.save(); g.translate(x, y); g.rotate(ang); g.scale(sx, sy);
+  g.save(); g.translate(7, 9); shapePath(g, shape, r + 9); g.fillStyle = INK; g.fill(); g.restore();
+  shapePath(g, shape, r + 9); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 3.5; g.strokeStyle = INK; g.stroke();
+  g.save(); shapePath(g, shape, r); g.clip(); if (im) cover(g, im, .5, .5, 1.05, -r * 1.15, -r * 1.15, r * 2.3, r * 2.3); g.restore();
+  /* a glossy highlight */
+  g.save(); shapePath(g, shape, r); g.clip(); g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.ellipse(-r * .35, -r * .55, r * .7, r * .28, -.5, 0, Math.PI * 2); g.fill(); g.restore();
+  g.restore();
+}
+
+/* ================= text ================= */
+function popText(g, text, x, y, px, t0, t, { fill = '#fff', ang = 0, font = popF, stroke = 9 } = {}) {
+  const [sx, sy] = boing(t - t0, .45); if (sx <= 0) return;
+  g.save(); g.translate(x, y); g.rotate(ang * (2 - sx)); g.scale(sx, sy);
+  g.font = font(px); g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.fillStyle = INK; g.fillText(text, 5, 7);
+  g.lineWidth = stroke; g.strokeStyle = INK; g.strokeText(text, 0, 0);
+  g.fillStyle = fill; g.fillText(text, 0, 0);
+  g.restore();
+}
+function fitPx(g, text, px, maxW, font = popF) { g.font = font(px); const w = g.measureText(text).width; return w > maxW ? px * maxW / w : px; }
+
+/* ================= backgrounds ================= */
+let dots = {};
+function dotPattern(g, col) {
+  if (dots[col]) return dots[col];
+  const c = document.createElement('canvas'); c.width = c.height = 22; const d = c.getContext('2d');
+  d.fillStyle = col; d.beginPath(); d.arc(5.5, 5.5, 3, 0, 7); d.arc(16.5, 16.5, 3, 0, 7); d.fill();
+  return dots[col] = g.createPattern(c, 'repeat');
+}
+function bg(g, col, t, rays = true) {
+  g.fillStyle = col; g.fillRect(-20, -20, LW + 40, LH + 40);
+  if (rays) {
+    g.save(); g.translate(270, 470); g.rotate(t * .35); g.fillStyle = 'rgba(255,255,255,.16)';
+    for (let i = 0; i < 16; i += 2) { g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 1200, i * Math.PI / 8, (i + 1) * Math.PI / 8); g.closePath(); g.fill(); }
+    g.restore();
+  }
+  g.save(); g.globalAlpha = .12; g.fillStyle = dotPattern(g, INK); g.translate((t * 12) % 22, (t * 12) % 22); g.fillRect(-40, -40, LW + 80, LH + 80); g.restore();
+}
+/* a circle of new colour growing out of a corner */
+function wipe(g, col, k, corner) {
+  if (k <= 0) return;
+  const cx = corner % 2 ? LW + 40 : -40, cy = corner < 2 ? -40 : LH + 40;
+  g.save(); g.beginPath(); g.arc(cx, cy, 1250 * outC(k), 0, Math.PI * 2); g.clip(); bg(g, col, 0, false); g.restore();
+}
+
+/* ================= scenes ================= */
+function intro(g, t) {
+  const bi = Math.floor(t / BEAT);
+  bg(g, PAL[bi % PAL.length], t);
+  const cur = INTRO.filter(w => t >= B(w[0])).pop();
+  if (cur) {
+    const px = fitPx(g, cur[1], 104, 470);
+    popText(g, cur[1], 270, 470, px, B(cur[0]), t, { ang: (INTRO.indexOf(cur) % 2 ? .06 : -.06) });
+  }
+  /* bouncing little dots in the corners */
+  for (let i = 0; i < 6; i++) { const s = boing(t - B(i), .5)[0]; if (s > 0) { g.fillStyle = PAL[(i + 2) % 6]; g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.arc(60 + hash(i) * 420, i % 2 ? 150 : 800, 16 * s, 0, 7); g.fill(); g.stroke(); } }
+}
+function daily(g, t) {
+  bg(g, '#3ec7ff', t);
+  for (const [key, b, x, y, ang, shape] of DAILY_ST) { const [sx, sy] = boing(t - B(b), .5); sticker(g, key, shape, x, y + Math.sin(t * 3 + b) * 6, 92, ang, sx * beatPulse(t), sy * beatPulse(t)); }
+  const d = t >= B(12) ? DAILY[1] : DAILY[0];
+  const px = fitPx(g, d.text, 70, 480);
+  popText(g, d.text, 270, 480, px, B(d.b), t, { fill: '#ffd23f', ang: -.04 });
+}
+function montage(g, t) {
+  const i = clamp(Math.floor((t / BEAT - 16) / 2), 0, MONTAGE.length - 1), m = MONTAGE[i], prev = MONTAGE[i - 1];
+  bg(g, prev ? prev.col : '#3ec7ff', t);
+  if (prev) { const o = 1 - outC(seg(t, B(m.b), B(m.b) + .3)); if (o > 0) sticker(g, prev.key, prev.shape, 270, 440 + Math.sin(t * 4) * 6, 190, Math.sin(t * 2 + i - 1) * .06 + (1 - o) * .4, o, o); }
+  wipe(g, m.col, seg(t, B(m.b) - .02, B(m.b) + .32), i % 4);
+  if (seg(t, B(m.b) - .02, B(m.b) + .32) >= 1) bg(g, m.col, t);
+  const u = t - B(m.b);
+  const [sx, sy] = boing(u, .55), pulse = beatPulse(t);
+  sticker(g, m.key, m.shape, 270, 440 + Math.sin(t * 4) * 6, 190, Math.sin(t * 2 + i) * .06, sx * pulse, sy * pulse);
+  /* the word in a speech bubble */
+  const px = fitPx(g, m.word, 76, 440);
+  popText(g, m.word, 270, 760, px, B(m.b + .5), t, { fill: '#fff', ang: i % 2 ? .07 : -.07 });
+  /* a day tag like a price sticker */
+  const [tx, ty] = boing(u - B(1), .4);
+  if (tx > 0) {
+    g.save(); g.translate(430, 190); g.rotate(.2); g.scale(tx, ty);
+    g.fillStyle = INK; g.beginPath(); g.arc(4, 6, 52, 0, 7); g.fill();
+    g.fillStyle = '#ffd23f'; g.strokeStyle = INK; g.lineWidth = 3.5; g.beginPath(); g.arc(0, 0, 52, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = INK; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = roundF(14); g.fillText('DAY', 0, -20); g.font = popF(34); g.fillText(m.day, 0, 10);
+    g.restore();
+  }
+}
+function grid(g, t) {
+  bg(g, '#ff4f9a', t);
+  const z = t > B(44) ? lerp(1, .78, outC(seg(t, B(44), B(45)))) : 1;
+  g.save(); g.translate(270, 480); g.scale(z, z); g.translate(-270, -480);
+  for (const s of GRID) { const [sx, sy] = boing(t - B(s.b), .45); const p = beatPulse(t + s.b * .1); sticker(g, s.key, s.shape, s.x, s.y + Math.sin(t * 4 + s.b) * 5, 64, s.ang, sx * p, sy * p); }
+  g.restore();
+  if (t > B(44)) {
+    const k = seg(t, B(44), B(47.5)), n = Math.max(1, Math.round(365 * Math.pow(k, 1.6)));
+    g.save(); g.fillStyle = 'rgba(29,26,47,.35)'; g.globalAlpha = sm(seg(t, B(44), B(44.5))); g.fillRect(0, 0, LW, LH); g.restore();
+    const bump = 1 + .12 * Math.exp(-((t / BEAT * 4) % 1) * 5) * (k < 1);
+    g.save(); g.translate(270, 450); g.scale(bump, bump);
+    popText(g, String(n), 0, 0, 170, B(44), t, { fill: '#ffd23f', stroke: 12 });
+    g.restore();
+    popText(g, '日目！', 270, 590, 64, B(44.5), t, { fill: '#fff' });
+  } else popText(g, '毎日、つくって、', 270, 860, 50, B(40.5), t, { fill: '#ffd23f' });
+}
+function outro(g, t) {
+  const bi = Math.floor(t / BEAT);
+  bg(g, PAL[(bi * 2 + 1) % PAL.length], t);
+  const cur = OUTRO.filter(w => t >= B(w[0])).pop();
+  const px = fitPx(g, cur[1], 100, 480);
+  /* the build: text shakes a little harder each beat */
+  const sh = seg(t, B(52), B(56)) * 5;
+  popText(g, cur[1], 270 + (hash(frameOf(t)) - .5) * sh, 470 + (hash(frameOf(t) + 3) - .5) * sh, px, B(cur[0]), t, { ang: OUTRO.indexOf(cur) % 2 ? .06 : -.06 });
+  /* last half beat: a white hold before the drop */
+  if (t > B(55.5)) { g.fillStyle = `rgba(255,246,229,${sm(seg(t, B(55.5), B(56)))})`; g.fillRect(0, 0, LW, LH); }
+}
+function logo(g, t) {
+  const u = t - B(LOGO);
+  bg(g, '#ffd23f', t);
+  /* ring of little stickers orbiting the name */
+  const ring = ['maneki', 'sushi', 'koi', 'matcha', 'fuji', 'momiji', 'taiko', 'cranes'];
+  ring.forEach((k, i) => {
+    const top = i < 4, j = i % 4, [sx, sy] = boing(u - .05 * i, .5), p = beatPulse(t);
+    const x = 78 + j * 128 + (top ? 0 : 20), y = (top ? 190 + (j % 2) * 70 : 720 + ((j + 1) % 2) * 70) + Math.sin(t * 3 + i) * 10;
+    sticker(g, k, SHAPES[i % 6], x, y, 52, Math.sin(t * 3 + i) * .2, sx * p, sy * p);
+  });
+  /* the name: each letter drops in on a sixteenth */
+  const name = 'AIチャレンジ365';
+  g.save(); g.font = popF(58); const cw = [...name].map(c => g.measureText(c).width), W = cw.reduce((a, b) => a + b, 0); g.restore();
+  const sc = Math.min(1, 470 / W), p = beatPulse(t);
+  g.save(); g.translate(270, 440); g.scale(sc * p, sc * p);
+  let x = -W / 2;
+  [...name].forEach((c, i) => {
+    const t0 = B(LOGO) + i * B(.25), y = -260 * (1 - outC(seg(t, t0, t0 + .22)));
+    if (t >= t0) popText(g, c, x + cw[i] / 2, y, 58, t0 + .12, t, { fill: i < 2 ? '#ff4f9a' : '#fff', stroke: 10, ang: (hash(i) - .5) * .15 });
+    x += cw[i];
+  });
+  g.restore();
+  /* call to action pill that beats with the kick */
+  const [px_, py_] = boing(t - CUES.cta, .5);
+  if (px_ > 0) {
+    const bp = beatPulse(t);
+    g.save(); g.translate(270, 560); g.scale(px_ * bp, py_ * bp);
+    g.fillStyle = INK; g.beginPath(); g.roundRect(-176, -30, 360, 66, 33); g.fill();
+    g.fillStyle = '#ff4f9a'; g.strokeStyle = INK; g.lineWidth = 3.5; g.beginPath(); g.roundRect(-180, -34, 360, 66, 33); g.fill(); g.stroke();
+    g.fillStyle = '#fff'; g.font = roundF(24); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('プロフィールのリンクから ▶', 0, 0);
+    g.restore();
+  }
+  confetti(g, t, B(LOGO), 90);
+  confetti(g, t, B(LOGO + 4), 50, 7);
+}
+function confetti(g, t, t0, n, seed = 0) {
+  const u = t - t0; if (u < 0 || u > 3.5) return;
+  for (let i = 0; i < n; i++) {
+    const h = k => hash(i * 7.3 + k + seed * 31), ang = -Math.PI / 2 + (h(1) - .5) * 2.6, sp = 500 + h(2) * 700;
+    const x = 270 + Math.cos(ang) * sp * u * Math.exp(-u * .9), y = 520 + Math.sin(ang) * sp * u * Math.exp(-u * .9) + 260 * u * u;
+    g.save(); g.translate(x, y); g.rotate(u * (4 + h(3) * 8)); g.scale(1, Math.cos(u * (6 + h(4) * 8)));
+    g.fillStyle = PAL[i % 6]; g.fillRect(-6, -3.5, 12, 7); g.restore();
+  }
+}
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  if (t < B(8)) intro(g, t);
+  else if (t < B(16)) daily(g, t);
+  else if (t < B(40)) montage(g, t);
+  else if (t < B(48)) grid(g, t);
+  else if (t < B(LOGO)) outro(g, t);
+  else logo(g, t);
+  /* a white pop flash on section changes */
+  for (const c of [B(8), B(16), B(40), B(48), B(LOGO)]) { const v = t - c; if (v >= 0 && v < .18) { g.fillStyle = `rgba(255,255,255,${.7 * (1 - v / .18)})`; g.fillRect(0, 0, LW, LH); } }
+  /* a frame of ink around everything, like a sticker sheet */
+  g.lineWidth = 14; g.strokeStyle = INK; g.strokeRect(0, 0, LW, LH);
+}
+
+/* ================= frame ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+let S = 1;
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  cv.width = w; cv.height = Math.round(w * 16 / 9); S = w / LW; dots = {};
+  render(T);
+}
+let T = 0;
+function render(t) {
+  T = t; if (!cv.width || !IM.sushi) return;
+  scene(ctx, t);
+  const fade = seg(t, DUR - .25, DUR); if (fade > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,246,229,${fade})`; ctx.fillRect(0, 0, cv.width, cv.height); }
+  updateUi();
+}
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const LIST = [[0, 'ねぇ、'], [B(8), '毎日ひとつ'], [B(16), 'シール'], [B(40), '365日目！'], [B(48), 'たのしくなる！'], [B(LOGO), 'AIチャレンジ365']];
+$('sheet').innerHTML = LIST.map(([t, n]) => `<li><button data-t="${t}">${n}</button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = 0; LIST.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#sheet li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#sheet button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + 1.2); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), document.fonts.load(popF(80), 'AIチャレンジ365たのしい'), document.fonts.load(roundF(20), 'プロフィールのリンクからDAY')]).catch(() => {}).then(() => {
+  resize(); render(B(LOGO + 5)); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

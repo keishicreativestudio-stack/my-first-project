@@ -1,0 +1,439 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 和の予告編</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Shippori+Mincho+B1:wght@600;800&display=swap">
+<style>
+/* Layout: the 9:16 player on a dark stage, a shot list like a film's cue sheet beside it; stacks on phones. Single committed dark look. */
+:root {
+  --stage: #0d0c0b;
+  --panel: #171513;
+  --line: #2c2824;
+  --washi: #efe7d8;
+  --muted: #9c9388;
+  --shu: #d2412d;
+  --mincho: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --brush: "Yuji Syuku", "Shippori Mincho B1", serif;
+  color-scheme: dark;
+}
+html, body { background: var(--stage); color: var(--washi); }
+body { font-family: var(--mincho); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.7; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .9); }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font-size: 12px; letter-spacing: .3em; color: var(--muted); }
+h1 { font: 400 34px/1.3 var(--brush); margin: 4px 0 6px; }
+h1 span { color: var(--shu); }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 40ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 600 13px var(--mincho); color: var(--washi); background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 7px 14px; cursor: pointer; }
+button:hover { border-color: var(--shu); }
+button.primary { background: var(--shu); border-color: var(--shu); color: #fff; min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--shu); outline-offset: 2px; }
+.tc { font: 600 13px var(--mincho); font-variant-numeric: tabular-nums; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--shu); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+ol.cues { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+ol.cues li { border-bottom: 1px solid var(--line); }
+ol.cues button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: 54px 1fr; gap: 10px; padding: 9px 6px; font-size: 13px; }
+ol.cues button:focus-visible { outline: 2px solid var(--shu); }
+ol.cues .t { color: var(--shu); font-variant-numeric: tabular-nums; }
+ol.cues b { display: block; font-weight: 800; }
+ol.cues span.d { color: var(--muted); font-size: 12px; }
+ol.cues li.on button { background: var(--panel); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 プロモーション映像"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AIチャレンジ365 · 30秒 · 縦型</div>
+      <h1>筆も、カメラも、<br>使っていない。<span>AIで描いた日本。</span></h1>
+      <p class="lede">15枚のAI画像だけで組んだ、映画の予告編のような30秒です。静かな水面から始まり、和太鼓の一撃で頂点に達します。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ol class="cues" id="cues"></ol>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 96, BEAT = 60 / BPM, BAR = BEAT * 4;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outCubic: k => 1 - Math.pow(1 - k, 3),
+  inCubic: k => k * k * k,
+  inOutCubic: k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
+  inOutSine: k => -(Math.cos(Math.PI * k) - 1) / 2,
+  outExpo: k => k >= 1 ? 1 : 1 - Math.pow(2, -10 * k),
+  inExpo: k => k <= 0 ? 0 : Math.pow(2, 10 * k - 10),
+};
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const noise1 = x => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return lerp(hash(i), hash(i + 1), u); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const mincho = (w, px) => `${w} ${px}px "Shippori Mincho B1", "Hiragino Mincho ProN", serif`;
+const brushF = px => `400 ${px}px "Yuji Syuku", "Shippori Mincho B1", serif`;
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+/* camera over a picture: cx, cy are the point of the image at frame centre (0..1), z = 1 covers the frame */
+function shot(g, key, cx, cy, z, rot = 0, alpha = 1) {
+  const im = IM[key]; if (!im) return;
+  const cover = Math.max(LW / im.width, LH / im.height) * z, w = im.width * cover, h = im.height * cover;
+  /* keep the frame inside the picture */
+  const x = clamp(LW / 2 - cx * w, LW - w, 0), y = clamp(LH / 2 - cy * h, LH - h, 0);
+  g.save(); g.globalAlpha *= alpha;
+  if (rot) { g.translate(LW / 2, LH / 2); g.rotate(rot); g.translate(-LW / 2, -LH / 2); }
+  g.drawImage(im, x, y, w, h); g.restore();
+}
+/* koi: the pond surface wobbles; the picture is drawn in thin strips shifted by a travelling wave */
+function waterShot(g, key, t, z) {
+  const im = IM[key]; if (!im) return;
+  const cover = Math.max(LW / im.width, LH / im.height) * z, w = im.width * cover, h = im.height * cover, x0 = (LW - w) / 2, y0 = (LH - h) / 2;
+  const strips = 96, sh = LH / strips, sy = im.height / h;
+  for (let i = 0; i < strips; i++) {
+    const y = i * sh, dx = Math.sin(y * .045 + t * 2.4) * 2.2 + Math.sin(y * .013 - t * 1.3) * 1.6;
+    g.drawImage(im, 0, (y - y0) * sy, im.width, (sh + 1) * sy, x0 + dx, y, w, sh + 1);
+  }
+}
+
+/* ================= timeline: 96 BPM, 12 bars ================= */
+const SHOTS = [
+  /* act 1: stillness, one shot per bar */
+  { t: 0, d: BAR, key: 'koi', kind: 'water', z: [1.12, 1.04], fx: 'ripples' },
+  { t: BAR, d: BAR, key: 'cranes', from: [.28, .52, 1.25], to: [.74, .5, 1.12], fx: 'dust' },
+  { t: BAR * 2, d: BAR, key: 'fuji', from: [.16, .38, 1.15], to: [.66, .45, 1.02], fx: 'petals' },
+  { t: BAR * 3, d: BAR, key: 'bamboo', from: [.5, .5, 1.0], to: [.5, .56, 1.18], fx: 'rays' },
+  /* act 2: two shots per bar, whip cuts on the beat */
+  { t: BAR * 4, d: BAR / 2, key: 'momiji', from: [.12, .5, 1.1], to: [.34, .5, 1.1], fx: 'leaves' },
+  { t: BAR * 4.5, d: BAR / 2, key: 'onsen', from: [.5, .6, 1.2], to: [.5, .52, 1.06], fx: 'steam' },
+  { t: BAR * 5, d: BAR / 2, key: 'sushi', from: [.2, .55, 1.35], to: [.55, .55, 1.35] },
+  { t: BAR * 5.5, d: BAR / 2, key: 'matcha', from: [.62, .5, 1.1], to: [.68, .5, 1.3], fx: 'petals' },
+  { t: BAR * 6, d: BAR / 2, key: 'indigo', from: [.42, .5, 1.1], to: [.6, .5, 1.22] },
+  { t: BAR * 6.5, d: BAR / 2, key: 'maneki', from: [.5, .48, 1.28], to: [.5, .45, 1.12] },
+  { t: BAR * 7, d: BAR / 2, key: 'street', from: [.24, .5, 1.05], to: [.62, .5, 1.15], fx: 'dust' },
+  { t: BAR * 7.5, d: BAR / 2, key: 'festival', from: [.36, .68, 1.4], to: [.62, .3, 1.25], fx: 'fireworks' },
+  /* climax */
+  { t: BAR * 8, d: BAR, key: 'taiko', kind: 'punch', from: [.44, .45, 1.45], to: [.48, .5, 1.05], fx: 'sparks' },
+  { t: BAR * 9, d: BAR, key: 'samurai', from: [.24, .45, 1.25], to: [.3, .45, 1.05], fx: 'wind' },
+  /* resolve */
+  { t: BAR * 10, d: BAR, key: 'torii', from: [.66, .52, 1.0], to: [.665, .5, 2.2], fx: 'mist' },
+];
+const LINES = [
+  { t: 0, d: BAR * 2 - .3, v: true, x: 470, text: ['筆は、', '使っていない。'] },
+  { t: BAR * 2, d: BAR * 2 - .3, v: true, x: 470, text: ['カメラも、', '使っていない。'] },
+  { t: BAR * 4, d: BAR - .15, label: '四季を。' },
+  { t: BAR * 5, d: BAR - .15, label: '味を。' },
+  { t: BAR * 6, d: BAR - .15, label: '手しごとを。' },
+  { t: BAR * 7, d: BAR - .15, label: '祭りの灯りを。' },
+];
+const HITS = [BAR * 8, BAR * 9, BAR * 11];
+const CUES = {
+  bpm: BPM, end: DUR, bars: 12,
+  cuts: SHOTS.map(s => s.t), whips: SHOTS.filter(s => s.t >= BAR * 4 && s.t < BAR * 8).map(s => s.t),
+  hits: HITS, taikoStrikes: [BAR * 8, BAR * 8 + BEAT * 2, BAR * 8 + BEAT * 3, BAR * 8 + BEAT * 3.5],
+  climaxText: [BAR * 8 + .1, BAR * 9 + .1], logo: BAR * 11, stamp: BAR * 11 + .9, cta: BAR * 11 + 1.35,
+};
+window.CUES = CUES;
+
+/* ================= canvases ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const buf = document.createElement('canvas'), b = buf.getContext('2d');
+const lay = document.createElement('canvas'), l = lay.getContext('2d');
+let S = 1, grains = [], washi = null;
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  const h = Math.round(w * 16 / 9);
+  for (const c of [cv, buf, lay]) { c.width = w; c.height = h; }
+  S = w / LW;
+  grains = [0, 1, 2, 3].map(k => { const c = document.createElement('canvas'); c.width = c.height = 160; const g = c.getContext('2d'), im = g.createImageData(160, 160); for (let i = 0; i < im.data.length; i += 4) { const v = hash(i * .37 + k * 71) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; } g.putImageData(im, 0, 0); return c; });
+  washi = document.createElement('canvas'); washi.width = w; washi.height = h;
+  const g = washi.getContext('2d'); g.scale(S, S); g.fillStyle = '#efe7d8'; g.fillRect(0, 0, LW, LH);
+  g.lineCap = 'round';
+  for (let i = 0; i < 380; i++) { const x = hash(i * 3.1) * LW, y = hash(i * 7.7) * LH, a = hash(i * 1.3) * 6.28, len = 8 + hash(i * 5.5) * 36; g.strokeStyle = `rgba(150,130,100,${.06 + hash(i * 2.2) * .1})`; g.lineWidth = .4 + hash(i) * .5; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke(); }
+  render(T);
+}
+
+/* ================= particle layers ================= */
+const P = Array.from({ length: 60 }, (_, i) => ({ x: hash(i) , y: hash(i + 99), z: .3 + hash(i + 7) * .7, r: hash(i + 13) * 6.28 }));
+function fx(g, kind, u, d) {
+  const k = u / d;
+  if (kind === 'petals' || kind === 'leaves') {
+    for (const p of P.slice(0, 26)) {
+      const y = ((p.y * LH + u * (60 + 90 * p.z)) % (LH + 60)) - 30, x = p.x * LW + Math.sin(u * 1.4 + p.r) * 30 * p.z - u * 20 * p.z;
+      g.save(); g.translate(x, y); g.rotate(p.r + u * (1 + p.z)); g.scale(1, .55 + .45 * Math.sin(u * 3 + p.r));
+      g.globalAlpha = .5 + .5 * p.z;
+      if (kind === 'petals') { g.fillStyle = '#f6c5cf'; g.beginPath(); g.ellipse(0, 0, 7 * p.z + 3, 4 * p.z + 2, 0, 0, 7); g.fill(); }
+      else { g.fillStyle = '#d6452b'; g.beginPath(); for (let i = 0; i < 5; i++) { const a = i / 5 * 6.28 - 1.57, r = (i % 2 ? 6 : 12) * p.z + 3; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.fill(); }
+      g.restore();
+    }
+  } else if (kind === 'dust') {
+    g.save(); g.globalCompositeOperation = 'screen';
+    for (const p of P) { const x = (p.x * LW + u * 12 * p.z) % LW, y = (p.y * LH - u * 8 * p.z + LH) % LH; g.fillStyle = `rgba(255,236,200,${.25 * p.z * (.6 + .4 * Math.sin(u * 2 + p.r))})`; g.beginPath(); g.arc(x, y, .8 + 1.6 * p.z, 0, 7); g.fill(); }
+    g.restore();
+  } else if (kind === 'rays' || kind === 'wind') {
+    g.save(); g.globalCompositeOperation = 'screen';
+    const ox = kind === 'rays' ? 250 : 480, oy = kind === 'rays' ? 60 : 330;
+    for (let i = 0; i < 7; i++) {
+      const a = (kind === 'rays' ? 1.2 : 2.3) + (i - 3) * .09 + Math.sin(u * .6 + i) * .02, len = 1100;
+      const gr = g.createLinearGradient(ox, oy, ox + Math.cos(a) * len, oy + Math.sin(a) * len);
+      gr.addColorStop(0, `rgba(255,240,200,${.16 + .06 * Math.sin(u * 1.3 + i * 2)})`); gr.addColorStop(1, 'rgba(255,240,200,0)');
+      g.fillStyle = gr; g.beginPath(); g.moveTo(ox, oy); g.lineTo(ox + Math.cos(a - .025) * len, oy + Math.sin(a - .025) * len); g.lineTo(ox + Math.cos(a + .025) * len, oy + Math.sin(a + .025) * len); g.fill();
+    }
+    g.restore();
+    if (kind === 'wind') {
+      g.save(); g.strokeStyle = 'rgba(255,230,170,.35)'; g.lineCap = 'round';
+      for (const p of P.slice(0, 22)) { const x = ((p.x * LW - u * 380 * p.z) % (LW + 200) + LW + 200) % (LW + 200) - 100, y = LH * (.55 + p.y * .45); g.lineWidth = 1 + p.z; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 40 * p.z, y - 6 * p.z); g.stroke(); }
+      g.restore();
+    }
+  } else if (kind === 'steam' || kind === 'mist') {
+    g.save();
+    for (let i = 0; i < 10; i++) {
+      const p = P[i], x = p.x * LW + Math.sin(u * .5 + i) * 40, y = (kind === 'steam' ? LH * .62 : LH * (.3 + p.y * .6)) - u * (20 + 30 * p.z), r = 140 + 120 * p.z;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(255,255,255,${kind === 'steam' ? .22 : .18 + .25 * k})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    g.restore();
+  } else if (kind === 'sparks') {
+    g.save(); g.globalCompositeOperation = 'lighter';
+    CUES.taikoStrikes.forEach((ts, si) => {
+      const v = u - (ts - BAR * 8); if (v < 0 || v > 1.2) return;
+      for (let i = 0; i < 40; i++) { const a = -Math.PI / 2 + (hash(i + si * 50) - .5) * 2.6, sp = 180 + hash(i * 3 + si) * 420, x = 330 + Math.cos(a) * sp * v, y = 690 + Math.sin(a) * sp * v + 260 * v * v; g.fillStyle = `rgba(255,${150 + hash(i) * 80 | 0},60,${(1 - v / 1.2) * .9})`; g.beginPath(); g.arc(x, y, 1.2 + hash(i + 5) * 2.2, 0, 7); g.fill(); }
+    });
+    g.restore();
+  } else if (kind === 'fireworks') {
+    g.save(); g.globalCompositeOperation = 'lighter';
+    [[.1, 300, 230, '255,200,120'], [.35, 120, 160, '150,190,255'], [.55, 420, 120, '255,150,200']].forEach(([st, x, y, c], j) => {
+      const v = u - st; if (v < 0 || v > 1) return;
+      for (let i = 0; i < 36; i++) { const a = i / 36 * 6.28 + j, r = 90 * E.outCubic(v), dx = Math.cos(a), dy = Math.sin(a); g.strokeStyle = `rgba(${c},${.8 * (1 - v)})`; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x + dx * r * .7, y + dy * r * .7 + 30 * v * v); g.lineTo(x + dx * r, y + dy * r + 40 * v * v); g.stroke(); }
+    });
+    g.restore();
+  } else if (kind === 'ripples') {
+    g.save(); g.strokeStyle = 'rgba(255,255,255,.35)';
+    [[0, 300, 360], [.9, 170, 640], [1.6, 380, 780]].forEach(([st, x, y]) => {
+      const v = ((u - st) % 2.2 + 2.2) % 2.2; if (u < st) return;
+      g.lineWidth = 2 * (1 - v / 2.2); g.globalAlpha = 1 - v / 2.2; g.beginPath(); g.ellipse(x, y, 20 + v * 90, (20 + v * 90) * .45, 0, 0, 7); g.stroke();
+    });
+    g.restore();
+  }
+}
+
+/* ================= words ================= */
+function vtextReveal(g, str, x, y, size, t0, t, step = .09) {
+  [...str].forEach((c, i) => {
+    const k = E.outCubic(seg(t, t0 + i * step, t0 + i * step + .5)); if (k <= 0) return;
+    let cx = x, cy = y + i * size * 1.12 + size / 2;
+    if ('、。'.includes(c)) { cx += size * .55; cy -= size * .55; }
+    g.save(); g.globalAlpha *= k; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 14 * S; g.fillText(c, cx, cy + (1 - k) * 14); g.restore();
+  });
+}
+function words(g, t) {
+  for (const L of LINES) {
+    const u = t - L.t; if (u < 0 || u > L.d) continue;
+    const out = 1 - E.inCubic(seg(u, L.d - .35, L.d));
+    g.save(); g.globalAlpha = out;
+    if (L.v) {
+      /* soft dark band behind the vertical column so it reads on pale paper */
+      const sc = g.createLinearGradient(LW, 0, 300, 0); sc.addColorStop(0, 'rgba(12,10,8,.55)'); sc.addColorStop(1, 'rgba(12,10,8,0)');
+      g.fillStyle = sc; g.fillRect(300, 0, 240, LH);
+      g.fillStyle = '#fbf6ec'; g.font = mincho(800, 44);
+      const t0 = L.t === 0 ? -2 : L.t + .05;   // the opening line is already there on frame 0 (thumbnail)
+      vtextReveal(g, L.text[0], L.x, 110, 44, t0, t);
+      vtextReveal(g, L.text[1], L.x - 64, 170, 44, L.t === 0 ? -2 : t0 + L.text[0].length * .09 + .25, t);
+    } else {
+      const k = E.outCubic(seg(u, .05, .4));
+      const sc = g.createLinearGradient(0, LH, 0, 700); sc.addColorStop(0, `rgba(12,10,8,${.6 * k})`); sc.addColorStop(1, 'rgba(12,10,8,0)');
+      g.fillStyle = sc; g.fillRect(0, 700, LW, 260); g.fillStyle = '#fbf6ec';
+      g.font = mincho(800, 34); g.textAlign = 'center'; g.globalAlpha = out * k;
+      g.shadowColor = 'rgba(0,0,0,.7)'; g.shadowBlur = 16 * S;
+      g.fillText(L.label, 270, 840 + (1 - k) * 12);
+      g.shadowBlur = 0; g.fillStyle = 'rgba(251,246,236,.7)'; const w = 60 * k; g.fillRect(270 - w - 80, 830, w, 1); g.fillRect(270 + 80, 830, w, 1);
+    }
+    g.restore();
+  }
+  /* climax: huge brushed words */
+  const [c1, c2] = CUES.climaxText;
+  if (t >= c1 && t < BAR * 10) {
+    const k = E.outExpo(seg(t, c1, c1 + .35)), sc = lerp(1.6, 1, k);
+    g.save(); g.translate(270, 180); g.scale(sc, sc); g.globalAlpha = clamp(k * 2) * (1 - E.inCubic(seg(t, BAR * 10 - .3, BAR * 10)));
+    g.font = brushF(96); g.textAlign = 'center'; g.fillStyle = '#fff'; g.shadowColor = 'rgba(0,0,0,.75)'; g.shadowBlur = 24 * S;
+    g.fillText('すべて、', 0, 0); g.restore();
+  }
+  if (t >= c2 && t < BAR * 10) {
+    const k = E.outExpo(seg(t, c2, c2 + .35)), sc = lerp(1.6, 1, k);
+    g.save(); g.translate(270, 820); g.scale(sc, sc); g.globalAlpha = clamp(k * 2) * (1 - E.inCubic(seg(t, BAR * 10 - .3, BAR * 10)));
+    g.font = brushF(78); g.textAlign = 'center'; g.fillStyle = '#fff'; g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 24 * S;
+    g.fillText('AIで描いた。', 0, 0); g.restore();
+  }
+}
+
+/* ================= logo card ================= */
+function endCard(g, t) {
+  const u = t - CUES.logo;
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(washi, 0, 0); g.restore();
+  g.setTransform(S, 0, 0, S, 0, 0);
+  /* the red sun of the paintings, pressed in like a seal */
+  const sk = E.outExpo(seg(u, 0, .6)), R = 118;
+  g.save(); g.translate(270, 360); g.scale(lerp(1.25, 1, sk), lerp(1.25, 1, sk)); g.globalAlpha = sk;
+  const gr = g.createRadialGradient(-30, -30, 10, 0, 0, R); gr.addColorStop(0, '#e2553d'); gr.addColorStop(1, '#c23a25');
+  g.fillStyle = gr; g.beginPath();
+  for (let i = 0; i <= 90; i++) { const a = i / 90 * 6.283, c = Math.cos(a), s = Math.sin(a), r = R * (1 + .025 * (noise1(3 + c * 3) + noise1(8 + s * 3) - 1)); i ? g.lineTo(c * r, s * r) : g.moveTo(c * r, s * r); }
+  g.fill();
+  g.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 70; i++) { g.globalAlpha = .5 * sk; g.beginPath(); g.arc((hash(i * 3) - .5) * R * 1.9, (hash(i * 5) - .5) * R * 1.9, .6 + hash(i) * 2.2, 0, 7); g.fill(); }
+  g.restore();
+  /* the name, brushed inside the sun then set below */
+  const nk = E.outCubic(seg(u, .35, 1.0));
+  g.save(); g.globalAlpha = nk; g.fillStyle = '#fbf3e6'; g.font = brushF(92); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('AI', 270, 362); g.restore();
+  g.save(); g.globalAlpha = nk; g.fillStyle = '#1d1b19'; g.font = mincho(800, 50); g.textAlign = 'center'; g.fillText('AIチャレンジ365', 270, 580 + (1 - nk) * 10); g.restore();
+  const sk2 = seg(u, .9, 1.1);
+  if (sk2 > 0) {
+    g.save(); g.translate(420, 640); g.rotate(-.05); g.scale(lerp(1.4, 1, E.outCubic(sk2)), lerp(1.4, 1, E.outCubic(sk2)));
+    g.fillStyle = '#c23a25'; g.fillRect(-30, -30, 60, 60); g.fillStyle = '#fbf3e6'; g.font = brushF(28); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('挑', 0, -9); g.fillText('戦', 0, 17); g.restore();
+  }
+  const ck = E.outCubic(seg(t, CUES.cta, CUES.cta + .5));
+  g.save(); g.globalAlpha = ck; g.textAlign = 'center';
+  g.font = mincho(800, 26); g.fillStyle = '#1d1b19'; g.fillText('あなたも、今日から描ける。', 270, 700 + (1 - ck) * 8);
+  g.font = mincho(600, 20); g.fillStyle = '#5c5751'; g.fillText('プロフィールのリンクから', 270, 770 + (1 - ck) * 8);
+  g.fillStyle = '#c23a25'; const n = Math.max(0, Math.sin(Math.PI * 2 * (u / BEAT))) * 5; g.beginPath(); g.moveTo(258, 800 - n); g.lineTo(270, 816 - n); g.lineTo(282, 800 - n); g.fill();
+  g.restore();
+}
+
+/* ================= compositing ================= */
+function drawShot(g, s, t) {
+  const u = t - s.t, k = clamp(u / s.d);
+  g.save();
+  if (s.kind === 'water') waterShot(g, s.key, t, lerp(s.z[0], s.z[1], E.inOutSine(k)));
+  else if (s.kind === 'punch') {
+    /* the camera slams in on each strike and eases back out */
+    let z = lerp(s.from[2], s.to[2], E.outExpo(k)), shake = 0;
+    for (const ts of CUES.taikoStrikes) { const v = t - ts; if (v >= 0 && v < .3) { z += .08 * (1 - v / .3); shake = Math.max(shake, (1 - v / .3) * 6); } }
+    const f = frameOf(t); g.translate((hash(f) - .5) * shake, (hash(f + 5) - .5) * shake);
+    shot(g, s.key, lerp(s.from[0], s.to[0], k), lerp(s.from[1], s.to[1], k), z);
+  } else {
+    const e = s.t >= BAR * 4 && s.t < BAR * 8 ? E.outCubic(k) : E.inOutSine(k);
+    shot(g, s.key, lerp(s.from[0], s.to[0], e), lerp(s.from[1], s.to[1], e), lerp(s.from[2], s.to[2], e));
+  }
+  if (s.fx) fx(g, s.fx, u, s.d);
+  g.restore();
+}
+function shotAt(t) { let s = SHOTS[0]; for (const x of SHOTS) if (x.t <= t + 1e-6) s = x; return s; }
+/* ink bleed: the next picture spreads into the old one like ink on wet paper */
+function inkMask(g, k, seed) {
+  g.beginPath();
+  const cx = 270 + (hash(seed) - .5) * 120, cy = 480 + (hash(seed + 1) - .5) * 200, R = 1200 * E.inCubic(k) + 10;
+  for (let i = 0; i <= 120; i++) { const a = i / 120 * 6.283, c = Math.cos(a), s2 = Math.sin(a), r = R * (1 + .22 * (noise1(seed + 3 + c * 2.5) + noise1(seed + 9 + s2 * 2.5) - 1)); i ? g.lineTo(cx + c * r, cy + s2 * r) : g.moveTo(cx + c * r, cy + s2 * r); }
+  g.closePath();
+}
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  if (t >= CUES.logo) { endCard(g, t); return; }
+  const s = shotAt(t), i = SHOTS.indexOf(s), nxt = SHOTS[i + 1];
+  drawShot(g, s, t);
+  /* act 1 transitions: ink bleed into the next shot over the last 0.8 s */
+  if (nxt && nxt.t <= BAR * 4 && t > nxt.t - .8) {
+    const k = seg(t, nxt.t - .8, nxt.t);
+    g.save(); inkMask(g, k, i * 7 + 1); g.clip(); drawShot(g, nxt, t); g.restore();
+  }
+  /* act 2: whip pan, the old frame streaks out and the new one streaks in */
+  if (s.t >= BAR * 4 && s.t < BAR * 8) {
+    const v = t - s.t; if (v < .14) { const k = 1 - v / .14; g.save(); g.globalAlpha = .35 * k; for (let j = 1; j <= 4; j++) { g.translate(-18 * k, 0); drawShot(g, s, t); } g.restore(); }
+  }
+  /* torii: push through the gate into white mist */
+  if (s.key === 'torii') { const k = E.inCubic(seg(t, BAR * 10 + 1.2, BAR * 11)); g.fillStyle = `rgba(245,240,230,${k})`; g.fillRect(0, 0, LW, LH); }
+  words(g, t);
+}
+function compose(t) {
+  const W = cv.width, H = cv.height, f = frameOf(t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  ctx.drawImage(buf, 0, 0);
+  /* grade: gentle bloom and a warm lift */
+  if ('filter' in ctx) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = t < CUES.logo ? .16 : .06; ctx.filter = `blur(${12 * S}px)`; ctx.drawImage(buf, 0, 0); ctx.restore(); ctx.filter = 'none'; }
+  /* flash + chromatic kick on the big hits */
+  for (const h of HITS) {
+    const v = t - h; if (v < 0 || v > .5) continue;
+    const k = Math.pow(1 - v / .5, 2);
+    ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,244,228,${.85 * k})`; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
+  }
+  if (t < CUES.logo) {
+    const vg = ctx.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .08; ctx.fillStyle = ctx.createPattern(grains[f % 4], 'repeat'); ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  /* hard cut to black for 2 frames right before the climax, the classic trailer breath */
+  if (t > BAR * 8 - .12 && t < BAR * 8) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); }
+  const fade = seg(t, DUR - .35, DUR); if (fade > 0) { ctx.fillStyle = `rgba(239,231,216,${fade})`; ctx.fillRect(0, 0, W, H); }
+}
+let T = 0;
+function render(t) { T = t; if (!cv.width || !grains.length || !IM.koi) return; scene(b, t); compose(t); updateUi(); }
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const LIST = [[0, '静', '鯉・折り鶴 「筆は、使っていない。」'], [BAR * 2, '静', '富士と桜・竹林 「カメラも、使っていない。」'], [BAR * 4, '動', '紅葉・雪見風呂・寿司・抹茶'], [BAR * 6, '動', '藍染め・招き猫・商店街・花火'], [BAR * 8, '撃', '和太鼓 「すべて、」'], [BAR * 9, '撃', '侍 「AIで描いた。」'], [BAR * 10, '結', '鳥居をくぐって霧の中へ'], [BAR * 11, '結', 'AIチャレンジ365']];
+$('cues').innerHTML = LIST.map(([t, n, d]) => `<li><button data-t="${t}"><span class="t">${t.toFixed(1)}s</span><span><b>${n}</b><span class="d">${d}</span></span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = 0; LIST.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#cues li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#cues button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + 1); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), ...[mincho(800, 44), mincho(600, 20), brushF(96)].map(f => document.fonts.load(f, '筆カメラ使すべてAIで描いたチャレンジ365'))]).catch(() => {}).then(() => {
+  resize(); render(BAR * 9 + 1.2); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

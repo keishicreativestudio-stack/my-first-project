@@ -185,10 +185,28 @@ function drawWordmark(g, cx, y, sc = 1, alpha = 1) {
   g.restore();
 }
 
+/* ================= supplied images (fall back to drawn placeholders) ================= */
+const IMG_SRC = /*IMGS*/{};
+const IMG = { posters: [], char: null, stickers: [], films: [], logos: [] };
+function loadImages() {
+  const load = src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+  return Promise.all(Object.entries(IMG_SRC).map(([k, list]) => Promise.all(list.map(load)).then(ims => { IMG[k] = ims.filter(Boolean); })))
+    .then(() => { IMG.char = (IMG.chars || [])[0] || null; });
+}
+function drawCover(g, im, x, y, w, h) {
+  const k = Math.max(w / im.width, h / im.height), iw = im.width * k, ih = im.height * k;
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.drawImage(im, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih); g.restore();
+}
+function drawContain(g, im, x, y, w, h, alignBottom = false) {
+  const k = Math.min(w / im.width, h / im.height), iw = im.width * k, ih = im.height * k;
+  g.drawImage(im, x + (w - iw) / 2, alignBottom ? y + h - ih : y + (h - ih) / 2, iw, ih);
+}
+
 /* ================= placeholder works ================= */
 const POSTER_PAL = [['#ff5a3c', '#ffe3d3', '#1b1b1b'], ['#1f3cff', '#ffd400', '#0b0b0b'], ['#0e7c66', '#f4efe2', '#0b0b0b'], ['#ffc7da', '#ff3d7f', '#2a1030'], ['#101820', '#fee715', '#ffffff'], ['#f4efe2', '#e2434b', '#111']];
 const POSTER_WORDS = [['SPRING', '春'], ['LIVE', '音'], ['OPEN', '開'], ['BLOOM', '花'], ['NIGHT', '夜'], ['TEA', '茶']];
 function poster(g, w, h, s) {
+  if (IMG.posters.length) { drawCover(g, IMG.posters[s % IMG.posters.length], 0, 0, w, h); return; }
   const [bg, fg, ink] = POSTER_PAL[s % POSTER_PAL.length], [en, jp] = POSTER_WORDS[s % POSTER_WORDS.length];
   g.fillStyle = bg; g.fillRect(0, 0, w, h);
   g.fillStyle = fg; g.beginPath(); g.arc(w * (.3 + hash(s) * .4), h * (.38 + hash(s + 1) * .12), w * (.28 + hash(s + 2) * .12), 0, 7); g.fill();
@@ -207,6 +225,7 @@ function character(g, w, h, s) {
   const cy = h * .45, r = g.createRadialGradient(w / 2, cy, 0, w / 2, cy, w * .62);
   r.addColorStop(0, col); r.addColorStop(.35, col + '99'); r.addColorStop(1, col + '00');
   g.fillStyle = r; g.fillRect(0, 0, w, h);
+  if (IMG.char) { drawContain(g, IMG.char, w * .06, h * .05, w * .88, h * .93, true); return; }
   drawSil(g, w / 2, h * .93, h * .78, col);
 }
 const STICKER = [['OK!', '#ffd84d', 0], ['ありがと', '#ff9ec2', 1], ['おつ', '#9fe3c9', 2], ['了解', '#a9c4ff', 0], ['すき', '#ffb27a', 3], ['ねむ', '#d6c2ff', 4], ['えらい', '#ffe98a', 1], ['わーい', '#9fe7ff', 3]];
@@ -238,10 +257,12 @@ function sticker(g, w, h, s) {
   g.fillStyle = '#f6f3ec'; g.fillRect(0, 0, w, h);
   g.fillStyle = 'rgba(0,0,0,.05)';
   for (let y = 12; y < h; y += 24) for (let x = 12; x < w; x += 24) { g.beginPath(); g.arc(x, y, 1.6, 0, 7); g.fill(); }
+  if (IMG.stickers.length) { drawContain(g, IMG.stickers[s % IMG.stickers.length], w * .06, h * .1, w * .88, h * .8); return; }
   stickerFace(g, w / 2, h * .46, w * .3, col, expr);
   stickerText(g, txt, w / 2, h * .86, w * .15);
 }
 function scene(g, w, h, s) {
+  if (IMG.films.length) { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); drawCover(g, IMG.films[s % IMG.films.length], 0, h * .1, w, h * .8); return; }
   const skies = [['#1d2350', '#f28b6d'], ['#0c1a2b', '#3f7ea6'], ['#2b1330', '#f0b35e'], ['#0f2a2a', '#8fd1b5']];
   const [top, bot] = skies[s % skies.length];
   const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, top); sky.addColorStop(1, bot);
@@ -432,7 +453,8 @@ function result(kind, r, y0, h, t) {
     const cy = y0 + h * .45, R = 300 * k, g = b.createRadialGradient(270, cy, 0, 270, cy, R + 1);
     g.addColorStop(0, 'rgba(170,215,255,1)'); g.addColorStop(.25, 'rgba(79,141,255,.85)'); g.addColorStop(1, 'rgba(79,141,255,0)');
     b.fillStyle = g; b.fillRect(0, y0, LW, h);
-    drawSil(b, 270, y0 + h + 4 + (1 - k) * 120, 400, '#8fc0ff', clamp(k * 3));
+    if (IMG.char) { b.save(); b.globalAlpha = clamp(k * 3); drawContain(b, IMG.char, 70, y0 + 10 + (1 - k) * 120, 400, h - 10, true); b.restore(); }
+    else drawSil(b, 270, y0 + h + 4 + (1 - k) * 120, 400, '#8fc0ff', clamp(k * 3));
   } else if (kind === 'sticker') {
     b.fillStyle = '#f6f3ec'; b.fillRect(0, y0, LW, h);
     for (let i = 0; i < 8; i++) {
@@ -440,7 +462,8 @@ function result(kind, r, y0, h, t) {
       const col = i % 4, row = Math.floor(i / 4), cx = 72 + col * 132, cy = y0 + 112 + row * 222;
       const bob = Math.sin((t - i * .1) * 9) * 3 * clamp(k);
       b.save(); b.translate(cx, cy + bob); b.scale(k, k);
-      const [txt, c, ex] = STICKER[i]; stickerFace(b, 0, -6, 50, c, ex); stickerText(b, txt, 0, 82, 25);
+      if (i < IMG.stickers.length) drawContain(b, IMG.stickers[i], -68, -80, 136, 170);
+      else { const [txt, c, ex] = STICKER[i]; stickerFace(b, 0, -6, 50, c, ex); stickerText(b, txt, 0, 82, 25); }
       b.restore();
     }
   } else if (kind === 'movie') {
@@ -638,7 +661,7 @@ document.addEventListener('keydown', e => {
 /* ================= boot ================= */
 function build() { buildSil(); buildParticles(); buildMask(); buildThumbs(); }
 new ResizeObserver(resize).observe(cv);
-Promise.all([font(900, 46), font(700, 26), mono(600, 14), mono(500, 12)].map(f => document.fonts.load(f, 'aあ字'))).catch(() => {}).then(() => {
+Promise.all([loadImages(), ...[font(900, 46), font(700, 26), mono(600, 14), mono(500, 12)].map(f => document.fonts.load(f, 'aあ字'))]).catch(() => {}).then(() => {
   build(); resize(); render(25.5); window.__ready = true;
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
 });

@@ -1,0 +1,579 @@
+<title>keishi studio PV 和</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Shippori+Mincho+B1:wght@600;800&display=swap">
+<style>
+/* Layout: a hanging-scroll monitor on the left, a vertical-text table of scenes on the right. Single committed washi look. */
+:root {
+  --kinari: #efe8dc;
+  --washi: #f6f1e7;
+  --sumi: #1d1b19;
+  --sumi-2: #5c5751;
+  --shu: #c43d2b;
+  --ai: #24304a;
+  --kin: #b8935a;
+  --brush: "Yuji Syuku", "Hiragino Mincho ProN", serif;
+  --mincho: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  color-scheme: light;
+}
+html, body { background: var(--kinari); color: var(--sumi); }
+body { font-family: var(--mincho); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.8; }
+.wrap { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 36px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: var(--washi); justify-self: center; border: 1px solid rgba(29, 27, 25, .25); box-shadow: 0 24px 50px -28px rgba(29, 27, 25, .5); }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 20px; min-width: 0; }
+.title { display: flex; gap: 18px; align-items: flex-start; }
+.title h1 { writing-mode: vertical-rl; font: 400 40px/1.2 var(--brush); margin: 0; letter-spacing: .08em; }
+.title p { margin: 0; font-size: 14px; color: var(--sumi-2); max-width: 36ch; }
+.seal { display: inline-grid; place-items: center; width: 40px; height: 40px; background: var(--shu); color: var(--washi); font: 400 22px var(--brush); border-radius: 3px; flex: none; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 600 13px var(--mincho); color: var(--sumi); background: transparent; border: 1px solid var(--sumi); border-radius: 2px; padding: 6px 14px; cursor: pointer; }
+button:hover { background: var(--sumi); color: var(--washi); }
+button.primary { background: var(--sumi); color: var(--washi); min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--shu); outline-offset: 2px; }
+.tc { font: 600 13px var(--mincho); font-variant-numeric: tabular-nums; }
+.tc small { color: var(--sumi-2); font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--shu); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--sumi-2); }
+ol.scenes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 4px; overflow-x: auto; border-block: 1px solid rgba(29, 27, 25, .25); padding-block: 12px; }
+ol.scenes button { all: unset; cursor: pointer; writing-mode: vertical-rl; display: flex; gap: 8px; padding: 6px 8px; min-height: 180px; font-size: 14px; border-radius: 2px; }
+ol.scenes button:focus-visible { outline: 2px solid var(--shu); }
+ol.scenes .n { font: 400 20px var(--brush); }
+ol.scenes .d { color: var(--sumi-2); font-size: 12px; }
+ol.scenes li.on button { background: var(--sumi); color: var(--washi); }
+ol.scenes li.on .d { color: var(--kinari); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="プロモーション映像の試作（和モダン版）"></canvas></div>
+  <div class="side">
+    <div class="title">
+      <h1>言葉を、かたちに。</h1>
+      <div style="display:grid;gap:10px">
+        <span class="seal" aria-hidden="true">創</span>
+        <p>和モダン版の30秒。墨、和紙、朱の三色と、琴・尺八・和太鼓で組みました。拍は一分に七十。作品はすべて仮です。</p>
+      </div>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 一コマ</button>
+      <button id="next">一コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> 繰り返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <ol class="scenes" id="scenes"></ol>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 70, BEAT = 60 / BPM, BAR = BEAT * 4;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outCubic: k => 1 - Math.pow(1 - k, 3),
+  inCubic: k => k * k * k,
+  inOutCubic: k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
+  outQuint: k => 1 - Math.pow(1 - k, 5),
+  inOutQuint: k => k < .5 ? 16 * Math.pow(k, 5) : 1 - Math.pow(-2 * k + 2, 5) / 2,
+  inOutSine: k => -(Math.cos(Math.PI * k) - 1) / 2,
+  outBack: k => { const c = 1.6; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); },
+};
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const noise1 = x => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return lerp(hash(i), hash(i + 1), u); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+
+/* ================= palette & type ================= */
+const W = { kinari: '#efe8dc', washi: '#f6f1e7', sumi: '#1d1b19', sumi2: '#5c5751', shu: '#c43d2b', ai: '#24304a', ai2: '#1a2233', kin: '#b8935a', wakatake: '#7f9c7a', sakura: '#e7c3bd' };
+const brush = px => `400 ${px}px "Yuji Syuku", "Hiragino Mincho ProN", serif`;
+const min = (w, px) => `${w} ${px}px "Shippori Mincho B1", "Hiragino Mincho ProN", serif`;
+
+/* ================= timeline (70 BPM) ================= */
+const T0 = { drop: 0, sentence: BAR, works: BAR * 2, interlude: BAR * 4, grid: BAR * 5, logo: BAR * 7, contact: BAR * 8, fade: 29.3 };
+const IMPACT = .42, SENT = '言葉を、かたちに。', COLX = 420, COLY = 128, COLSZ = 62;
+const WORKS = [
+  { n: '壱', ja: 'ポスター', copy: '春を、一枚に。', reveal: 'shoji', work: 'poster' },
+  { n: '弐', ja: '家紋・ロゴ', copy: '想いを、しるしに。', reveal: 'fan', work: 'kamon' },
+  { n: '参', ja: 'キャラクター', copy: '夜を、ひとりに。', reveal: 'noren', work: 'moon' },
+  { n: '肆', ja: '映像', copy: '景色を、一巻に。', reveal: 'scroll', work: 'sansui' },
+];
+const WK_LEN = BEAT * 2;
+const PANELS = [[0, 0], [270, 0], [0, 480], [270, 480]];
+const FLIPS = [
+  { j: 0, p: 0, to: { work: 'sansui', seed: 1 } }, { j: 1, p: 3, to: { work: 'kamon', seed: 2 } },
+  { j: 2, p: 1, to: { work: 'wagashi', seed: 0 } }, { j: 3, p: 2, to: { work: 'poster', seed: 2 } },
+  { j: 4, p: 0, to: { pat: 'shippo', bg: W.ai, fg: W.kin } }, { j: 4.5, p: 3, to: { work: 'moon', seed: 1 } },
+  { j: 5, p: 1, to: { work: 'kamon', seed: 0 } }, { j: 5.5, p: 2, to: { pat: 'asanoha', bg: W.wakatake, fg: W.washi } },
+  { j: 6, p: 0, to: { shu: true } }, { j: 6.15, p: 1, to: { shu: true } }, { j: 6.3, p: 2, to: { shu: true } }, { j: 6.45, p: 3, to: { shu: true } },
+];
+const START_PAT = [{ pat: 'seigaiha', bg: W.ai, fg: W.washi }, { pat: 'ichimatsu', bg: W.kinari, fg: W.sumi }, { pat: 'asanoha', bg: W.sumi, fg: W.kin }, { pat: 'shippo', bg: W.sakura, fg: W.shu }];
+const CUES = {
+  bpm: BPM, t0: T0, end: T0.fade, impact: IMPACT, charT: .8,
+  sentence: [...SENT].map((_, i) => T0.sentence + .15 + i * .2).slice(1),
+  stamp: T0.sentence + BAR - .6,
+  works: WORKS.map((w, i) => ({ t: T0.works + i * WK_LEN, reveal: w.reveal })),
+  flips: FLIPS.map(f => T0.grid + f.j * BEAT),
+  enso: [T0.logo + .05, T0.logo + 1.3], seal: T0.logo + 2.3,
+};
+window.CUES = CUES;
+
+/* ================= canvases ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const buf = document.createElement('canvas'), b = buf.getContext('2d');
+let S = 1, washiTex = null, grains = [];
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  const h = Math.round(w * 16 / 9);
+  for (const c of [cv, buf]) { c.width = w; c.height = h; }
+  S = w / LW;
+  buildWashi(); buildGrain(); render(T);
+}
+/* washi: a kinari ground with long fibres and soft clouds */
+function buildWashi() {
+  washiTex = document.createElement('canvas'); washiTex.width = cv.width; washiTex.height = cv.height;
+  const g = washiTex.getContext('2d'); g.scale(S, S);
+  g.fillStyle = W.washi; g.fillRect(0, 0, LW, LH);
+  for (let i = 0; i < 40; i++) {
+    const r = g.createRadialGradient(hash(i) * LW, hash(i + 9) * LH, 0, hash(i) * LW, hash(i + 9) * LH, 60 + hash(i + 3) * 120);
+    r.addColorStop(0, 'rgba(220,205,180,.08)'); r.addColorStop(1, 'rgba(220,205,180,0)'); g.fillStyle = r; g.fillRect(0, 0, LW, LH);
+  }
+  g.lineCap = 'round';
+  for (let i = 0; i < 420; i++) {
+    const x = hash(i * 3.1) * LW, y = hash(i * 7.7) * LH, a = hash(i * 1.3) * 6.28, l = 8 + hash(i * 5.5) * 40;
+    g.strokeStyle = `rgba(160,140,110,${.06 + hash(i * 2.2) * .12})`; g.lineWidth = .3 + hash(i) * .6;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a + .6) * l * .5, y + Math.sin(a + .6) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+}
+function buildGrain() {
+  grains = [0, 1, 2].map(k => {
+    const c = document.createElement('canvas'); c.width = c.height = 160;
+    const g = c.getContext('2d'), im = g.createImageData(160, 160);
+    for (let i = 0; i < im.data.length; i += 4) { const v = hash(i * .51 + k * 555) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
+    g.putImageData(im, 0, 0); return c;
+  });
+}
+function paper(g) { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(washiTex, 0, 0); g.restore(); }
+
+/* ================= shared drawing helpers ================= */
+/*SIL*/
+let silCv = null;
+function buildSil() {
+  const res = 2, w = 300, h = 440, pad = 20;
+  silCv = document.createElement('canvas'); silCv.width = (w + pad * 2) * res; silCv.height = (h + pad * 2) * res;
+  const g = silCv.getContext('2d'); g.setTransform(res, 0, 0, res, pad * res, pad * res); g.fillStyle = W.sumi;
+  defaultSilhouette(g);
+}
+function vtext(g, str, x, y, size, alphaAt, clipAt) {
+  const base = g.globalAlpha;
+  g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
+  [...str].forEach((c, i) => {
+    const a = alphaAt ? alphaAt(i) : 1; if (a <= 0) return;
+    let cx = x, cy = y + i * size * 1.1 + size / 2;
+    if ('、。'.includes(c)) { cx += size * .56; cy -= size * .56; }
+    g.globalAlpha = base * a;
+    const cl = clipAt ? clipAt(i) : 1;
+    if (cl <= 0) return;
+    g.save();
+    if (cl < 1) { g.beginPath(); g.rect(cx - size, cy - size * .6, size * 2, size * 1.2 * cl); g.clip(); }
+    if ('ー'.includes(c)) { g.translate(cx, cy); g.rotate(Math.PI / 2); g.fillText(c, 0, 0); } else g.fillText(c, cx, cy);
+    g.restore();
+  });
+  g.restore();
+}
+/* ink blob with a ragged, bleeding edge */
+function inkBlob(g, cx, cy, R, seed, col = W.sumi, alpha = 1) {
+  if (R <= 0) return;
+  g.save(); g.globalAlpha *= alpha;
+  const pts = 90;
+  for (const [k, a] of [[1.08, .12], [1.0, 1]]) {
+    g.fillStyle = col; g.globalAlpha = alpha * a; g.beginPath();
+    for (let i = 0; i <= pts; i++) {
+      const th = i / pts * Math.PI * 2;
+      const c = Math.cos(th), sn = Math.sin(th);
+      const r = R * k * (1 + .14 * (noise1(3 + c * 2 + seed) + noise1(9 + sn * 2 + seed) - 1) + .07 * (noise1(20 + c * 6 + seed * 2) + noise1(40 + sn * 6) - 1));
+      i ? g.lineTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r) : g.moveTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r);
+    }
+    g.fill();
+  }
+  g.restore();
+}
+function blobPath(g, cx, cy, R, seed) {
+  g.beginPath();
+  for (let i = 0; i <= 90; i++) {
+    const th = i / 90 * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
+    const r = R * (1 + .14 * (noise1(3 + c * 2 + seed) + noise1(9 + sn * 2 + seed) - 1));
+    i ? g.lineTo(cx + c * r, cy + sn * r) : g.moveTo(cx + c * r, cy + sn * r);
+  }
+}
+/* dry-brush stroke along an arc: bristles stamped with pressure and gaps */
+function brushArc(g, cx, cy, r, a0, sweep, prog, col = W.sumi) {
+  const steps = Math.floor(260 * prog);
+  g.save(); g.fillStyle = col;
+  for (let s = 0; s < steps; s++) {
+    const k = s / 260, th = a0 + sweep * k;
+    const press = k < .06 ? lerp(.5, 1, k / .06) : lerp(1, .25, Math.pow(k, 1.6));
+    const width = 30 * press;
+    const x = cx + Math.cos(th) * r, y = cy + Math.sin(th) * r;
+    for (let bI = 0; bI < 14; bI++) {
+      const off = (bI / 13 - .5) * width, dry = noise1(k * 40 + bI * 7.3);
+      if (k > .55 && dry < (k - .55) * 1.6) continue;
+      g.globalAlpha = .55 + .45 * hash(bI + 3);
+      g.beginPath(); g.arc(x + Math.cos(th) * off, y + Math.sin(th) * off, 1.6 + press * 1.4, 0, 7); g.fill();
+    }
+  }
+  g.restore();
+}
+function seal(g, cx, cy, size, ch = '創', alpha = 1, sc = 1) {
+  g.save(); g.globalAlpha *= alpha; g.translate(cx, cy); g.scale(sc, sc); g.rotate(-.03);
+  g.fillStyle = W.shu; g.fillRect(-size / 2, -size / 2, size, size);
+  g.fillStyle = W.washi; g.font = brush(size * .66); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 0, size * .04);
+  g.strokeStyle = W.washi; g.lineWidth = size * .05; g.strokeRect(-size * .4, -size * .4, size * .8, size * .8);
+  /* worn ink: little flecks of paper show through */
+  g.fillStyle = W.washi;
+  for (let i = 0; i < 26; i++) { g.globalAlpha = alpha * .7; g.beginPath(); g.arc((hash(i * 3) - .5) * size, (hash(i * 5) - .5) * size, .6 + hash(i) * 1.4, 0, 7); g.fill(); }
+  g.restore();
+}
+
+/* ================= patterns ================= */
+function pattern(g, kind, x, y, w, h, bg, fg) {
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  g.fillStyle = bg; g.fillRect(x, y, w, h); g.strokeStyle = fg; g.fillStyle = fg; g.lineWidth = 1.4;
+  if (kind === 'seigaiha') {
+    const R = 30;
+    for (let row = -1; row < h / (R / 2) + 2; row++) for (let col = -1; col < w / R + 2; col++) {
+      const cx = x + col * R * 2 + (row % 2 ? R : 0), cy = y + row * R / 2;
+      for (let k = 4; k >= 1; k--) { g.fillStyle = bg; g.beginPath(); g.arc(cx, cy, R * k / 4, Math.PI, 0); g.fill(); g.beginPath(); g.arc(cx, cy, R * k / 4, Math.PI, 0); g.stroke(); }
+    }
+  } else if (kind === 'ichimatsu') {
+    const s = 45;
+    for (let r = 0; r < h / s + 1; r++) for (let c = 0; c < w / s + 1; c++) if ((r + c) % 2) g.fillRect(x + c * s, y + r * s, s, s);
+  } else if (kind === 'asanoha') {
+    const s = 40, hgt = s * Math.sqrt(3);
+    for (let r = -1; r < h / hgt + 2; r++) for (let c = -1; c < w / s + 2; c++) {
+      const cx = x + c * s + (r % 2 ? s / 2 : 0), cy = y + r * hgt / 2 * 1;
+      for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + Math.PI / 6; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * s * .58, cy + Math.sin(a) * s * .58); g.stroke(); }
+    }
+  } else if (kind === 'shippo') {
+    const s = 44;
+    for (let r = -1; r < h / s + 2; r++) for (let c = -1; c < w / s + 2; c++) { g.beginPath(); g.arc(x + c * s, y + r * s, s / Math.SQRT2, 0, 7); g.stroke(); }
+  }
+  g.restore();
+}
+
+/* ================= placeholder works (和) ================= */
+function wPoster(g, w, h, s) {
+  g.fillStyle = [W.washi, W.kinari, '#e9e1d3'][s % 3]; g.fillRect(0, 0, w, h);
+  g.fillStyle = W.shu; g.beginPath(); g.arc(w * .42, h * .38, w * .28, 0, 7); g.fill();
+  g.fillStyle = W.sumi; g.font = brush(w * .16); vtext(g, ['春の宵', '月見酒', '初しぐれ'][s % 3], w * .8, h * .1, w * .16);
+  g.font = min(600, w * .045); g.fillText('令和八年 四月 十二日より', w * .08, h * .9);
+  g.strokeStyle = W.sumi; g.lineWidth = 1; g.strokeRect(w * .05, h * .04, w * .9, h * .92);
+}
+function wKamon(g, w, h, s) {
+  const dark = s % 2 === 0;
+  g.fillStyle = dark ? W.ai : W.kinari; g.fillRect(0, 0, w, h);
+  const ink = dark ? W.washi : W.sumi, cx = w / 2, cy = h * .42, R = w * .28;
+  g.strokeStyle = ink; g.fillStyle = ink; g.lineWidth = R * .08;
+  g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
+  if (s % 3 === 0) { for (let i = 0; i < 5; i++) { const a = i * Math.PI * 2 / 5 - Math.PI / 2; g.beginPath(); g.arc(cx + Math.cos(a) * R * .42, cy + Math.sin(a) * R * .42, R * .3, 0, 7); g.fill(); } g.fillStyle = dark ? W.ai : W.kinari; g.beginPath(); g.arc(cx, cy, R * .16, 0, 7); g.fill(); }
+  else if (s % 3 === 1) { for (let i = 0; i < 3; i++) { g.save(); g.translate(cx, cy); g.rotate(i * 2.094); g.beginPath(); g.ellipse(0, -R * .42, R * .2, R * .42, 0, 0, 7); g.fill(); g.restore(); } }
+  else { g.beginPath(); g.moveTo(cx, cy - R * .7); g.lineTo(cx + R * .6, cy + R * .35); g.lineTo(cx - R * .6, cy + R * .35); g.closePath(); g.fill(); }
+  g.font = min(800, w * .07); g.textAlign = 'center'; g.fillText(['花一', '三葉堂', '山ノ内'][s % 3], cx, h * .82); g.textAlign = 'left';
+}
+function wMoon(g, w, h, s) {
+  const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, W.ai2); bg.addColorStop(1, W.ai); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  const mg = g.createRadialGradient(w * .5, h * .36, 0, w * .5, h * .36, w * .5); mg.addColorStop(0, 'rgba(246,241,231,.35)'); mg.addColorStop(1, 'rgba(246,241,231,0)');
+  g.fillStyle = mg; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#f3ead6'; g.beginPath(); g.arc(w * .5, h * .36, w * .3, 0, 7); g.fill();
+  const k = h * .66 / 480, sw = silCv.width / 2 * k, shh = silCv.height / 2 * k;
+  g.drawImage(silCv, w * .5 - sw / 2, h - shh + 10 * k, sw, shh);
+  g.strokeStyle = W.sumi; g.lineWidth = 1.2;
+  for (let i = 0; i < 14; i++) { const x = hash(i + s) * w; g.beginPath(); g.moveTo(x, h); g.quadraticCurveTo(x + 6, h * .85, x + 18 * (hash(i) - .3), h * (.72 + hash(i + 4) * .1)); g.stroke(); }
+}
+function wSansui(g, w, h, s) {
+  g.fillStyle = W.washi; g.fillRect(0, 0, w, h);
+  g.fillStyle = W.shu; g.beginPath(); g.arc(w * .7, h * .24, w * .1, 0, 7); g.fill();
+  for (let L = 0; L < 4; L++) {
+    const gr = g.createLinearGradient(0, h * (.3 + L * .12), 0, h); gr.addColorStop(0, `rgba(29,27,25,${.25 + L * .18})`); gr.addColorStop(1, 'rgba(29,27,25,0)');
+    g.fillStyle = gr; g.beginPath(); g.moveTo(0, h);
+    for (let i = 0; i <= 20; i++) g.lineTo(w * i / 20, h * (.42 + L * .1) - Math.pow(noise1(i * .35 + L * 5 + s * 3), 2) * h * .26);
+    g.lineTo(w, h); g.fill();
+  }
+  pattern(g, 'seigaiha', 0, h * .82, w, h * .18, W.ai, W.washi);
+}
+function wWagashi(g, w, h, s) {
+  g.fillStyle = W.sumi; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#2d2a27'; g.beginPath(); g.ellipse(w / 2, h * .62, w * .42, h * .12, 0, 0, 7); g.fill();
+  [[.35, W.sakura], [.55, '#d8e2c2'], [.72, '#f3ead6']].forEach(([x, c], i) => {
+    const r = w * .1, cy = h * .56;
+    const gr = g.createRadialGradient(w * x - r * .3, cy - r * .4, r * .1, w * x, cy, r); gr.addColorStop(0, '#fff'); gr.addColorStop(1, c);
+    g.fillStyle = gr; g.beginPath(); g.ellipse(w * x, cy, r, r * .8, 0, 0, 7); g.fill();
+  });
+  g.fillStyle = W.kin; g.font = min(600, w * .05); g.textAlign = 'center'; g.fillText('季節の上生菓子', w / 2, h * .86); g.textAlign = 'left';
+}
+const WK = { poster: wPoster, kamon: wKamon, moon: wMoon, sansui: wSansui, wagashi: wWagashi };
+function drawWork(g, kind, seed, x, y, w, h) { g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); WK[kind](g, w, h, seed); g.restore(); }
+
+/* ================= scenes ================= */
+function sceneDrop(t) {
+  paper(b);
+  const cx = 270, cy = 440;
+  /* the drop falls, faster and faster */
+  if (t < IMPACT) {
+    const k = E.inCubic(seg(t, 0, IMPACT)), y = lerp(-40, cy, k), stretch = 1 + k * 1.2;
+    b.fillStyle = W.sumi; b.beginPath(); b.ellipse(cx, y, 9, 9 * stretch, 0, 0, 7); b.fill();
+    b.beginPath(); b.moveTo(cx - 8, y - 2); b.quadraticCurveTo(cx, y - 30 * stretch, cx + 8, y - 2); b.fill();
+  }
+  /* splash droplets + spreading blob */
+  const u = t - IMPACT, blobFade = 1 - E.inOutCubic(seg(t, 1.6, 2.4));
+  if (u >= 0) {
+    for (let i = 0; i < 26; i++) {
+      const a = hash(i * 4.1) * 6.28, v = 120 + hash(i * 2.7) * 260, tt = Math.min(u, .5);
+      const x = cx + Math.cos(a) * v * tt, y = cy + Math.sin(a) * v * tt * .7 + 380 * tt * tt;
+      const r = (1.5 + hash(i) * 4) * (u < .5 ? 1 : 1);
+      b.fillStyle = W.sumi; b.globalAlpha = (u < .5 ? 1 : .85) * blobFade; b.beginPath(); b.arc(x, y, r, 0, 7); b.fill(); b.globalAlpha = 1;
+    }
+    const R = 150 * E.outCubic(seg(u, 0, 1.3)) + 10 * Math.sin(u * 2) * seg(u, .5, 2);
+    inkBlob(b, cx, cy, R * 1.25, 3, 'rgba(29,27,25,.18)', blobFade);
+    inkBlob(b, cx, cy, R, 1, W.sumi, blobFade);
+  }
+  /* the blob gives way to the brushed 言, which then travels to the head of the column */
+  const ck = E.inOutCubic(seg(t, 1.5, 2.5)), mv = E.inOutQuint(seg(t, 2.55, BAR + .1));
+  if (ck > 0) {
+    const size = lerp(330, COLSZ, mv), x = lerp(cx, COLX, mv), y = lerp(cy, COLY + COLSZ / 2, mv);
+    b.save(); b.beginPath(); b.arc(cx + (x - cx), y, lerp(40 + 360 * ck, 400, mv), 0, 7); b.clip();
+    b.fillStyle = W.sumi; b.font = brush(size); b.textAlign = 'center'; b.textBaseline = 'middle';
+    b.globalAlpha = .18 * (1 - mv); b.fillText('言', x + 4, y + 4); b.globalAlpha = 1; b.fillText('言', x, y);
+    b.restore();
+  }
+}
+
+function sceneSentence(t) {
+  paper(b);
+  b.fillStyle = W.sumi; b.font = brush(COLSZ);
+  vtext(b, SENT, COLX, COLY, COLSZ, null, i => i === 0 ? 1 : E.inOutSine(seg(t, CUES.sentence[i - 1], CUES.sentence[i - 1] + .28)));
+  /* the hanging line and small latin credit, rotated */
+  b.fillStyle = 'rgba(29,27,25,.5)'; b.fillRect(330, COLY, 1, 640 * E.inOutCubic(seg(t, T0.sentence + .3, T0.sentence + 1.8)));
+  b.save(); b.translate(120, 600); b.rotate(-Math.PI / 2); b.globalAlpha = E.outCubic(seg(t, T0.sentence + 1.2, T0.sentence + 2));
+  b.font = min(600, 13); b.fillStyle = W.sumi2; b.fillText('K E I S H I   C R E A T I V E   S T U D I O', 0, 0); b.restore();
+  b.font = min(600, 18); b.fillStyle = W.sumi; b.globalAlpha = E.outCubic(seg(t, T0.sentence + 1.6, T0.sentence + 2.4));
+  vtext(b, 'けいし創作室', 170, 380, 18); b.globalAlpha = 1;
+  const sk = seg(t, CUES.stamp, CUES.stamp + .25);
+  if (sk > 0) seal(b, 420, 780, 62, '創', 1, lerp(1.35, 1, E.outBack(sk)));
+}
+
+/* works */
+const FR = { x: 70, y: 150, w: 400, h: 540 };
+function reveal(kind, k, t) {
+  const { x, y, w, h } = FR;
+  if (kind === 'shoji') {
+    const off = E.inOutCubic(k) * (w / 2 + 10);
+    for (const side of [-1, 1]) {
+      const px = side < 0 ? x - off : x + w / 2 + off;
+      b.save(); b.beginPath(); b.rect(x - 2, y - 2, w + 4, h + 4); b.clip();
+      b.fillStyle = 'rgba(246,241,231,.94)'; b.fillRect(px, y, w / 2, h);
+      b.strokeStyle = '#6b5a45'; b.lineWidth = 2;
+      for (let gx = 0; gx <= 4; gx++) { b.beginPath(); b.moveTo(px + gx * w / 8, y); b.lineTo(px + gx * w / 8, y + h); b.stroke(); }
+      for (let gy = 0; gy <= 6; gy++) { b.beginPath(); b.moveTo(px, y + gy * h / 6); b.lineTo(px + w / 2, y + gy * h / 6); b.stroke(); }
+      b.lineWidth = 6; b.strokeRect(px, y, w / 2, h); b.restore();
+    }
+  } else if (kind === 'fan') {
+    const a = E.inOutCubic(k) * 1.45, ox = x + w / 2, oy = y + h + 30;
+    b.save(); b.beginPath(); b.rect(x, y, w, h); b.moveTo(ox, oy); b.arc(ox, oy, h * 1.3, -Math.PI / 2 - a, -Math.PI / 2 + a); b.closePath(); b.clip('evenodd');
+    paper(b); b.restore();
+    b.save(); b.beginPath(); b.rect(x, y, w, h); b.clip(); b.strokeStyle = 'rgba(107,90,69,.7)'; b.lineWidth = 1.2;
+    for (let i = -6; i <= 6; i++) { const th = -Math.PI / 2 + a * i / 6; b.beginPath(); b.moveTo(ox, oy); b.lineTo(ox + Math.cos(th) * h * 1.3, oy + Math.sin(th) * h * 1.3); b.stroke(); }
+    b.restore();
+  } else if (kind === 'noren') {
+    const e = E.inOutCubic(k);
+    for (const side of [-1, 1]) {
+      b.save(); b.beginPath(); b.rect(x - 2, y - 2, w + 4, h + 4); b.clip();
+      const bx = side < 0 ? x : x + w / 2 + 2, sway = side * e * (w / 2 + 20), lift = e * e * h * .6;
+      b.fillStyle = W.ai; b.beginPath();
+      b.moveTo(bx, y); b.lineTo(bx + w / 2 - 2, y);
+      b.quadraticCurveTo(bx + w / 2 - 2 + sway * .6, y + h * .5, bx + w / 2 - 2 + sway, y + h - lift);
+      b.lineTo(bx + sway, y + h - lift); b.quadraticCurveTo(bx + sway * .6, y + h * .5, bx, y); b.fill();
+      b.fillStyle = W.washi; b.globalAlpha = 1 - e; b.beginPath(); b.arc(side < 0 ? x + w / 2 - 2 : x + w / 2 + 2, y + h * .35, 60, side < 0 ? Math.PI / 2 : -Math.PI / 2, side < 0 ? -Math.PI / 2 : Math.PI / 2, side > 0); b.fill();
+      b.restore();
+    }
+  } else if (kind === 'scroll') {
+    const e = E.inOutCubic(k), ry = y + h * e;
+    b.save(); b.beginPath(); b.rect(x - 2, ry, w + 4, y + h - ry + 4); b.clip(); paper(b); b.restore();
+    b.fillStyle = '#3a2a1c'; b.fillRect(x - 16, ry - 8, w + 32, 16); b.fillStyle = W.kin; b.fillRect(x - 24, ry - 6, 10, 12); b.fillRect(x + w + 14, ry - 6, 10, 12);
+  }
+}
+function sceneWorks(t) {
+  paper(b);
+  const i = clamp(Math.floor((t - T0.works) / WK_LEN), 0, 3), wk = WORKS[i], u = t - (T0.works + i * WK_LEN);
+  drawWork(b, wk.work, i, FR.x, FR.y, FR.w, FR.h);
+  b.strokeStyle = W.sumi; b.lineWidth = 1; b.strokeRect(FR.x - 8, FR.y - 8, FR.w + 16, FR.h + 16);
+  const rk = seg(u, .05, .75);
+  if (rk < 1) reveal(wk.reveal, rk, t);
+  /* captions */
+  const ck = k => E.outCubic(seg(u, k, k + .5));
+  b.fillStyle = W.sumi; b.globalAlpha = ck(.2); b.font = brush(40); vtext(b, wk.n, 505, 150, 40);
+  b.globalAlpha = ck(.3); b.font = min(600, 16); vtext(b, wk.ja, 505, 210, 16);
+  b.globalAlpha = ck(.4); b.font = min(800, 26); b.textAlign = 'center'; b.fillText(wk.copy, 270, 790); b.textAlign = 'left';
+  b.globalAlpha = ck(.5); b.fillStyle = W.shu; b.beginPath(); b.arc(270, 826, 4, 0, 7); b.fill(); b.globalAlpha = 1;
+  /* page number in kanji, lower left */
+  b.fillStyle = W.sumi2; b.font = min(600, 12); vtext(b, '作品 ' + wk.n, 36, 820, 12);
+}
+
+const FLAKES = Array.from({ length: 60 }, (_, i) => ({ x: hash(i * 3) * LW, y: hash(i * 7) * LH, s: 2 + hash(i * 11) * 6, r: hash(i * 13) * 6.28, v: 8 + hash(i * 17) * 22 }));
+function sceneInterlude(t) {
+  const u = t - T0.interlude, into = E.outCubic(seg(u, 0, .35));
+  /* ink wipe: an indigo blot spreads from where the moon will rise and floods the page */
+  const wipeR = 1250 * E.inOutCubic(seg(u, 0, .5));
+  paper(b); inkBlob(b, 165, 700, wipeR, 5, W.ai2);
+  b.save(); if (u < .5) { blobPath(b, 165, 700, wipeR * .98, 5); b.clip(); }
+  /* the moon rises, with a haze */
+  const mx = 165, my = lerp(900, 640, E.outCubic(seg(u, 0, BAR))), mg = b.createRadialGradient(mx, my, 0, mx, my, 240);
+  mg.addColorStop(0, `rgba(243,234,214,${.35 * into})`); mg.addColorStop(1, 'rgba(243,234,214,0)');
+  b.fillStyle = mg; b.fillRect(0, 0, LW, LH);
+  b.fillStyle = `rgba(243,234,214,${.95 * into})`; b.beginPath(); b.arc(mx, my, 100, 0, 7); b.fill();
+  /* gold leaf drifting */
+  for (const f of FLAKES) {
+    const y = ((f.y - u * f.v) % LH + LH) % LH, x = f.x + Math.sin(u * .8 + f.r) * 12, rot = f.r + u * .9, shine = .55 + .45 * Math.sin(u * 3 + f.r * 4);
+    b.save(); b.translate(x, y); b.rotate(rot); b.globalAlpha = into * (.5 + .5 * shine);
+    b.fillStyle = shine > .7 ? '#e6cf9a' : W.kin; b.beginPath(); b.moveTo(-f.s, -f.s * .4); b.lineTo(f.s * .8, -f.s * .6); b.lineTo(f.s, f.s * .5); b.lineTo(-f.s * .6, f.s * .7); b.fill(); b.restore();
+  }
+  b.fillStyle = W.washi; b.font = brush(44);
+  const A = 'ひらめきを、', B = 'ひと筆で、かたちに。';
+  vtext(b, A, 440, 110, 44, i => E.outCubic(seg(t, T0.interlude + .6 + i * .14, T0.interlude + 1.1 + i * .14)));
+  vtext(b, B, 362, 170, 44, i => E.outCubic(seg(t, T0.interlude + 1.5 + i * .12, T0.interlude + 2 + i * .12)));
+  b.restore();
+}
+
+function panelFace(g, face, x, y, w, h, t) {
+  if (face.shu) { g.fillStyle = W.shu; g.fillRect(x, y, w, h); pattern(g, 'seigaiha', x, y + h * .55, w, h * .45, W.shu, 'rgba(246,241,231,.5)'); return; }
+  if (face.pat) { pattern(g, face.pat, x, y, w, h, face.bg, face.fg); return; }
+  drawWork(g, face.work, face.seed, x, y, w, h);
+}
+function sceneGrid(t) {
+  b.fillStyle = W.sumi; b.fillRect(0, 0, LW, LH);
+  PANELS.forEach(([x, y], p) => {
+    const evs = FLIPS.filter(f => f.p === p && T0.grid + f.j * BEAT <= t);
+    const cur = evs.length ? evs[evs.length - 1] : null, prev = evs.length > 1 ? evs[evs.length - 2].to : START_PAT[p];
+    const w = 270, h = 480;
+    let face = cur ? cur.to : START_PAT[p], k = 1;
+    if (cur) k = seg(t, T0.grid + cur.j * BEAT, T0.grid + cur.j * BEAT + .36);
+    /* card flip: shrink the old face to a line, grow the new one */
+    const show = k < .5 ? prev : face, sx = Math.abs(Math.cos(k * Math.PI));
+    b.save(); b.translate(x + w / 2, y + h / 2); b.scale(Math.max(.002, sx), 1); b.translate(-w / 2, -h / 2);
+    panelFace(b, show, 0, 0, w, h, t);
+    if (k < 1) { b.fillStyle = `rgba(0,0,0,${.35 * (1 - sx)})`; b.fillRect(0, 0, w, h); }
+    b.restore();
+  });
+  b.fillStyle = W.sumi; b.fillRect(269, 0, 2, LH); b.fillRect(0, 479, LW, 2);
+  /* at the end the red field takes a brushed word */
+  const wk = seg(t, T0.grid + 6.8 * BEAT, T0.grid + 7.8 * BEAT);
+  if (wk > 0) { b.save(); b.fillStyle = W.washi; b.font = brush(150); b.globalAlpha = E.outCubic(wk); vtext(b, '創る', 270, 250, 150, null, i => E.inOutSine(clamp(wk * 2 - i))); b.restore(); }
+}
+
+function sceneLogo(t) {
+  paper(b);
+  const u = t - T0.logo, cx = 270, cy = 380;
+  brushArc(b, cx, cy, 128, Math.PI * .72, Math.PI * 1.82, E.inOutSine(seg(t, CUES.enso[0], CUES.enso[1])));
+  const kk = E.outCubic(seg(u, 1.1, 1.8));
+  b.save(); b.globalAlpha = kk; b.fillStyle = W.sumi; b.font = brush(96); b.textAlign = 'center'; b.textBaseline = 'middle'; b.fillText('言', cx, cy + 4); b.restore();
+  const wk = E.outCubic(seg(u, 1.5, 2.3));
+  b.save(); b.globalAlpha = wk; b.textAlign = 'center'; b.fillStyle = W.sumi;
+  b.font = min(800, 40); b.fillText('k e i s h i', cx, 580 + (1 - wk) * 8);
+  b.font = min(600, 12); b.fillStyle = W.sumi2; b.fillText('C R E A T I V E    S T U D I O', cx, 608); b.restore();
+  const sk = seg(t, CUES.seal, CUES.seal + .22);
+  if (sk > 0) seal(b, 372, 470, 44, '創', 1, lerp(1.4, 1, E.outBack(sk)));
+  b.fillStyle = W.sumi; b.font = brush(24);
+  vtext(b, SENT, 492, 120, 24, i => E.outCubic(seg(u, 2.0 + i * .08, 2.5 + i * .08)));
+  /* contact */
+  const c1 = E.outCubic(seg(t, T0.contact + .1, T0.contact + .8)), c2 = E.outCubic(seg(t, T0.contact + .4, T0.contact + 1.1));
+  b.save(); b.textAlign = 'center';
+  b.globalAlpha = c1; b.font = min(800, 20); b.fillStyle = W.sumi; b.fillText('ご相談は、DMにて。', cx, 720 + (1 - c1) * 8);
+  b.globalAlpha = c2; b.font = min(600, 18); b.fillStyle = W.shu; b.fillText('@keishi_studio', cx, 758 + (1 - c2) * 8);
+  b.restore();
+  const fade = E.inOutCubic(seg(t, T0.fade, DUR));
+  if (fade > 0) { b.fillStyle = `rgba(246,241,231,${fade})`; b.fillRect(0, 0, LW, LH); }
+}
+
+/* ================= frame ================= */
+function renderScene(t) {
+  b.setTransform(S, 0, 0, S, 0, 0); b.globalAlpha = 1; b.globalCompositeOperation = 'source-over'; b.textAlign = 'left'; b.textBaseline = 'alphabetic';
+  /* a slow camera push for the whole piece; a small jolt on the taiko hits */
+  let jolt = 0;
+  for (const h of [IMPACT, CUES.stamp, T0.logo, CUES.seal]) if (t >= h && t < h + .2) jolt = Math.max(jolt, (1 - (t - h) / .2) * 3);
+  const f = frameOf(t), zx = (hash(f) - .5) * jolt, zy = (hash(f + 3) - .5) * jolt;
+  b.setTransform(S, 0, 0, S, zx * S, zy * S);
+  if (t < T0.sentence) sceneDrop(t);
+  else if (t < T0.works) sceneSentence(t);
+  else if (t < T0.interlude) sceneWorks(t);
+  else if (t < T0.grid) sceneInterlude(t);
+  else if (t < T0.logo) sceneGrid(t);
+  else sceneLogo(t);
+}
+function compose(t) {
+  const Wd = cv.width, Hd = cv.height, f = frameOf(t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(buf, 0, 0);
+  /* paper fibres show through everything, like ink on washi */
+  ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .18; ctx.drawImage(washiTex, 0, 0);
+  ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .06; ctx.fillStyle = ctx.createPattern(grains[f % 3], 'repeat'); ctx.fillRect(0, 0, Wd, Hd);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  const vg = ctx.createRadialGradient(Wd / 2, Hd / 2, Hd * .35, Wd / 2, Hd / 2, Hd * .72);
+  vg.addColorStop(0, 'rgba(60,45,30,0)'); vg.addColorStop(1, 'rgba(60,45,30,.22)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, Wd, Hd);
+}
+let T = 0;
+function render(t) { T = t; if (!cv.width || !washiTex || !silCv) return; renderScene(t); compose(t); updateUi(); }
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const SCN = [[T0.drop, '一', '墨の一滴'], [T0.sentence, '二', '筆で書く一行'], [T0.works, '三', '障子・扇・暖簾・巻物'], [T0.interlude, '四', '月と金箔'], [T0.grid, '五', '文様が返る'], [T0.logo, '六', '円相と落款']];
+$('scenes').innerHTML = SCN.map(([t, n, d]) => `<li><button data-t="${t}"><span class="n">${n}</span><span class="d">${d}</span></button></li>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>／ ${DUR.toFixed(2)} 秒　${Math.floor(T / BAR) + 1}小節 ${Math.floor((T % BAR) / BEAT) + 1}拍</small>`;
+  let on = 0; SCN.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#scenes li').forEach((li, i) => li.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#scenes button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + .02); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() { buildSil(); }
+new ResizeObserver(resize).observe(cv);
+Promise.all([brush(62), min(800, 26), min(600, 16)].map(f => document.fonts.load(f, '言葉をかたちに創'))).catch(() => {}).then(() => {
+  build(); resize(); render(T0.logo + 4); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

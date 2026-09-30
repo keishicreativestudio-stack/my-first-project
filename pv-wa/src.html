@@ -319,7 +319,28 @@ function wWagashi(g, w, h, s) {
   g.fillStyle = W.kin; g.font = min(600, w * .05); g.textAlign = 'center'; g.fillText('季節の上生菓子', w / 2, h * .86); g.textAlign = 'left';
 }
 const WK = { poster: wPoster, kamon: wKamon, moon: wMoon, sansui: wSansui, wagashi: wWagashi };
-function drawWork(g, kind, seed, x, y, w, h) { g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); WK[kind](g, w, h, seed); g.restore(); }
+/* supplied pictures: each kind can have a 3:4 cut and a tall 9:16 cut; the closer ratio wins */
+const IMG_SRC = /*IMGS*/{};
+const IMG = {};
+function loadImages() {
+  const load = src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+  return Promise.all(Object.entries(IMG_SRC).map(([name, src]) => load(src).then(im => {
+    if (!im) return;
+    const [, kind, tall] = name.match(/^wa_([a-z]+)(_tall)?$/);
+    (IMG[kind] = IMG[kind] || []).push(im);
+  })));
+}
+function pickImage(kind, w, h) {
+  const list = IMG[kind]; if (!list || !list.length) return null;
+  const r = w / h; return list.reduce((a, c) => Math.abs(c.width / c.height - r) < Math.abs(a.width / a.height - r) ? c : a);
+}
+function drawWork(g, kind, seed, x, y, w, h) {
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y);
+  const im = pickImage(kind, w, h);
+  if (im) { const k = Math.max(w / im.width, h / im.height); g.drawImage(im, (w - im.width * k) / 2, (h - im.height * k) / 2, im.width * k, im.height * k); }
+  else WK[kind](g, w, h, seed);
+  g.restore();
+}
 
 /* ================= scenes ================= */
 function sceneDrop(t) {
@@ -572,7 +593,7 @@ document.addEventListener('keydown', e => {
 /* ================= boot ================= */
 function build() { buildSil(); }
 new ResizeObserver(resize).observe(cv);
-Promise.all([brush(62), min(800, 26), min(600, 16)].map(f => document.fonts.load(f, '言葉をかたちに創'))).catch(() => {}).then(() => {
+Promise.all([loadImages(), ...[brush(62), min(800, 26), min(600, 16)].map(f => document.fonts.load(f, '言葉をかたちに創'))]).catch(() => {}).then(() => {
   build(); resize(); render(T0.logo + 4); window.__ready = true;
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
 });

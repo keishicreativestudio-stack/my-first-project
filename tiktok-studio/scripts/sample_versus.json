@@ -1,0 +1,11 @@
+{
+  "handle": "@your_account",
+  "theme": "green",
+  "scenes": [
+    {"style": "hook", "text": "ChatGPTとClaude\nコピーライターとして\n**優秀なのはどっち？**"},
+    {"label": "お題", "code": "朝が苦手な人向けの目覚まし時計に、\nキャッチコピーを1つつけて。", "text": ""},
+    {"label": "ChatGPT の答え", "text": "（ここに実際の答えを貼る）"},
+    {"label": "Claude の答え", "text": "（ここに実際の答えを貼る）"},
+    {"style": "cta", "text": "あなたはどっち派？\n**コメントで教えて**"}
+  ]
+}

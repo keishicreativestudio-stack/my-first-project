@@ -1,0 +1,13 @@
+{
+  "handle": "@your_account",
+  "series": "AIに作らせてみた #1",
+  "theme": "dark",
+  "scenes": [
+    {"style": "hook", "text": "AIに\n「**ゲーム作って**」\nって言っただけの結果…"},
+    {"label": "AIへの指示はこれだけ", "code": "落ちものパズルゲームを作って。\nスマホでも遊べるようにして。", "text": ""},
+    {"text": "作っている様子（**4倍速**）", "clip": "../assets/demo_screen.mp4", "clip_speed": 4},
+    {"text": "完成したゲームで\n**実際に遊んでみる**", "clip": "../assets/demo_screen.mp4", "clip_start": 2, "clip_max": 4},
+    {"text": "かかった時間は\n**たったの◯分**"},
+    {"style": "cta", "text": "次は何を作らせる？\n**コメントで募集中**"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "handle": "@your_account",
+  "theme": "light",
+  "scenes": [
+    {"style": "hook", "text": "ChatGPTの使い方\n**9割の人が損してる**"},
+    {"text": "普通に頼むと\n答えがふわっとする", "image": "../assets/demo_screen.png"},
+    {"label": "最後にこれを足すだけ", "code": "足りない情報があれば、\n答える前に私に質問して。", "text": ""},
+    {"text": "AIが**質問してくる**から\n自分に合った答えになる"},
+    {"style": "cta", "text": "保存して\n**明日から使って**"}
+  ]
+}

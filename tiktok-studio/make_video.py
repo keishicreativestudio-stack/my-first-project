@@ -201,7 +201,7 @@ def paste_shadowed(base, img, xy, radius=36):
     base.paste(img.convert("RGBA"), xy, mask)
 
 
-MEDIA_BOX = (SIDE - 40, SAFE_TOP + 60, W - SIDE + 40, 1150)   # 画面録画・画像を置く枠
+MEDIA_BOX = (SIDE - 40, 220, W - SIDE + 40, 1240)   # 画面録画・画像を置く枠
 
 
 class Scene:
@@ -367,7 +367,9 @@ def clip_frames(ffmpeg, scene, n_frames):
     spec = scene.spec
     bw, bh = scene.media_size()
     speed = float(spec.get("clip_speed", 1))
-    vf = (f"setpts=PTS/{speed},fps={FPS},"
+    crop = spec.get("clip_crop")   # [x, y, 幅, 高さ]（元の動画のピクセル）で一部だけ切り出す
+    vf = (f"crop={crop[2]}:{crop[3]}:{crop[0]}:{crop[1]}," if crop else "")
+    vf += (f"setpts=PTS/{speed},fps={FPS},"
           f"scale={bw}:{bh}:force_original_aspect_ratio=decrease,"
           f"scale=trunc(iw/2)*2:trunc(ih/2)*2")
     cmd = [ffmpeg, "-v", "error", "-ss", str(spec.get("clip_start", 0)), "-i", str(scene.path(spec["clip"])),

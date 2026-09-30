@@ -1,0 +1,334 @@
+<meta charset="utf-8">
+<title>AIチャレンジ365 一閃</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Shippori+Mincho+B1:wght@600;800&family=Cinzel:wght@600&display=swap">
+<style>
+/* Layout: the 9:16 player on black beside a cut list like a film's edit decision list; stacks on phones. Single committed black-and-vermilion look. */
+:root {
+  --black: #070707;
+  --panel: #121212;
+  --line: #262626;
+  --bone: #eeeae3;
+  --muted: #8a8580;
+  --shu: #e0301e;
+  --mincho: "Shippori Mincho B1", "Hiragino Mincho ProN", serif;
+  --latin: "Cinzel", "Shippori Mincho B1", serif;
+  color-scheme: dark;
+}
+html, body { background: var(--black); color: var(--bone); }
+body { font-family: var(--mincho); padding-inline: 16px; padding-block: 24px 48px; line-height: 1.7; }
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+.screen { width: min(100%, calc(84vh * 9 / 16)); max-width: 100%; aspect-ratio: 9 / 16; background: #000; justify-self: center; }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font: 600 11px var(--latin); letter-spacing: .4em; color: var(--muted); }
+h1 { font: 800 44px/1.1 var(--mincho); margin: 6px 0; letter-spacing: .08em; }
+h1 span { color: var(--shu); }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 42ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 600 13px var(--mincho); color: var(--bone); background: var(--panel); border: 1px solid var(--line); border-radius: 0; padding: 7px 16px; cursor: pointer; }
+button:hover { border-color: var(--shu); }
+button.primary { background: var(--shu); border-color: var(--shu); color: #fff; min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--shu); outline-offset: 2px; }
+.tc { font: 600 13px var(--mincho); font-variant-numeric: tabular-nums; }
+.tc small { color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--shu); margin: 0; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+table.edl { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.edl td { border-bottom: 1px solid var(--line); padding: 0; }
+table.edl button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 44px 58px 1fr; gap: 8px; padding: 7px 6px; cursor: pointer; }
+table.edl button:focus-visible { outline: 2px solid var(--shu); }
+table.edl .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+table.edl .t { color: var(--shu); font-variant-numeric: tabular-nums; }
+table.edl tr.on td { background: var(--panel); }
+</style>
+
+<div class="wrap">
+  <div class="screen"><canvas id="cv" aria-label="AIチャレンジ365 一閃"></canvas></div>
+  <div class="side">
+    <div>
+      <div class="eyebrow">AI CHALLENGE 365 · 30 SEC · 96 BPM</div>
+      <h1>一閃<span>。</span></h1>
+      <p class="lede">黒と朱だけの世界を、刀の一閃で切り替えていく30秒。赤いものだけが色を持ち、あとはすべて墨のような白黒です。</p>
+    </div>
+    <div class="row">
+      <button class="primary" id="play">▶ 再生</button>
+      <button id="snd" aria-pressed="true">音 あり</button>
+      <button id="prev">‹ 1コマ</button>
+      <button id="next">1コマ ›</button>
+      <label class="chk"><input type="checkbox" id="loop" checked> くり返す</label>
+    </div>
+    <div class="row"><span class="tc" id="tc">0.00</span></div>
+    <input type="range" id="seek" min="0" max="30" step="0.001" value="0" aria-label="再生位置">
+    <table class="edl"><tbody id="edl"></tbody></table>
+  </div>
+</div>
+
+<!--AUDIO-->
+<script>
+/* ================= utilities ================= */
+const DUR = 30, FPS = 30, LW = 540, LH = 960;
+const BPM = 96, BEAT = 60 / BPM, BAR = BEAT * 4;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const sm = k => k * k * (3 - 2 * k);
+const outC = k => 1 - Math.pow(1 - k, 3);
+const outX = k => k >= 1 ? 1 : 1 - Math.pow(2, -10 * k);
+const inOut = k => -(Math.cos(Math.PI * k) - 1) / 2;
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const frameOf = t => Math.floor(t * FPS + 1e-6);
+const $ = id => document.getElementById(id);
+const mincho = (w, px) => `${w} ${px}px "Shippori Mincho B1", "Hiragino Mincho ProN", serif`;
+const brushF = px => `400 ${px}px "Yuji Syuku", "Shippori Mincho B1", serif`;
+const latin = px => `600 ${px}px "Cinzel", "Shippori Mincho B1", serif`;
+const SHU = '#e0301e', BONE = '#eeeae3';
+const BAR_H = 104;                     // cinema bars top and bottom
+
+/* ================= shots (in beats) ================= */
+const B = x => x * BEAT;
+const SHOTS = [
+  { a: 0, b: 6, key: 'samurai', from: [.33, .42, 1.25], to: [.3, .42, 1.08], words: ['剣は、', '持たない。'], ang: 0 },
+  { a: 6, b: 10, key: 'cranes', from: [.8, .5, 1.18], to: [.75, .52, 1.06], words: ['筆も、', '持たない。'], ang: -.55 },
+  { a: 10, b: 14, key: 'torii', from: [.72, .5, 1.05], to: [.72, .47, 1.22], words: ['カメラも、', '持たない。'], ang: .6 },
+  { a: 14, b: 16, key: 'momiji', from: [.2, .4, 1.1], to: [.25, .45, 1.22], kanji: '紅', label: 'MOMIJI', ang: -.45 },
+  { a: 16, b: 18, key: 'festival', from: [.36, .45, 1.2], to: [.3, .38, 1.1], kanji: '祭', label: 'MATSURI', ang: 1.2 },
+  { a: 18, b: 20, key: 'maneki', from: [.5, .45, 1.1], to: [.5, .42, 1.25], kanji: '福', label: 'FUKU', ang: -.9 },
+  { a: 20, b: 22, key: 'koi', from: [.5, .4, 1.12], to: [.5, .5, 1.22], kanji: '鯉', label: 'KOI', ang: .35 },
+  { a: 22, b: 24, key: 'street', from: [.3, .4, 1.05], to: [.36, .45, 1.15], kanji: '灯', label: 'AKARI', ang: -.3 },
+  { a: 24, b: 26, key: 'fuji', from: [.62, .36, 1.12], to: [.67, .3, 1.22], kanji: '富', label: 'FUJI', ang: .9 },
+  { a: 26, b: 28, key: 'bamboo', from: [.5, .5, 1.1], to: [.5, .45, 1.22], kanji: '竹', label: 'TAKE', ang: -1.2 },
+  { a: 28, b: 30, key: 'matcha', from: [.63, .5, 1.3], to: [.6, .5, 1.15], kanji: '茶', label: 'CHA', ang: .5 },
+  { a: 30, b: 36, key: 'taiko', from: [.45, .45, 1.3], to: [.45, .5, 1.05], words: ['持つのは、'], ang: -.6, punch: true },
+  { a: 36, b: 40, key: 'samurai', from: [.33, .24, 2.0], to: [.33, .24, 2.25], big: 'AI。', ang: 0.02 },
+].map(s => ({ ...s, t: B(s.a), e: B(s.b) }));
+const LOGO = B(40);
+const CUES = { bpm: BPM, end: DUR, slashes: SHOTS.slice(1).map(s => s.t).concat([LOGO]), strikes: [B(30), B(32), B(33), B(34), B(34.5)], ai: B(36), logo: LOGO, cta: LOGO + B(3) };
+window.CUES = CUES;
+
+/* ================= pictures ================= */
+const IMGS = /*IMGS*/{};
+const IM = {};
+function loadImages() {
+  return Promise.all(Object.entries(IMGS).map(([k, src]) => new Promise(res => { const im = new Image(); im.onload = () => { IM[k] = im; res(); }; im.onerror = res; im.src = src; })));
+}
+function shotPic(g, s, t) {
+  const im = IM[s.key]; if (!im) return;
+  const k = inOut(clamp((t - s.t + .2) / (s.e - s.t + .6)));
+  let z = lerp(s.from[2], s.to[2], k);
+  if (s.punch) for (const st of CUES.strikes) { const v = t - st; if (v >= 0 && v < .35) z *= 1 + .09 * (1 - v / .35); }
+  const cx = lerp(s.from[0], s.to[0], k), cy = lerp(s.from[1], s.to[1], k);
+  const cover = Math.max(LW / im.width, LH / im.height) * z, w = im.width * cover, h = im.height * cover;
+  const x = clamp(LW / 2 - cx * w, LW - w, 0), y = clamp(LH / 2 - cy * h, LH - h, 0);
+  g.drawImage(im, x, y, w, h);
+}
+
+/* ================= words ================= */
+function shotWords(g, s, t) {
+  const u = t - s.t, out = 1 - sm(seg(t, s.e - .18, s.e));
+  g.save(); g.globalAlpha = out;
+  if (s.words) {
+    /* vertical mincho, bone white, slid in from the cut direction */
+    const shade = g.createLinearGradient(LW, 0, 250, 0); shade.addColorStop(0, 'rgba(0,0,0,.7)'); shade.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = shade; g.fillRect(250, BAR_H, 290, LH - BAR_H * 2);
+    g.fillStyle = BONE; g.font = mincho(800, 46); g.textAlign = 'center'; g.textBaseline = 'middle';
+    s.words.forEach((w, wi) => {
+      const x = 474 - wi * 66, t0 = s.t + (s.t === 0 ? -5 : .12) + wi * .35;
+      [...w].forEach((c, i) => {
+        const k = outX(seg(t, t0 + i * .06, t0 + i * .06 + .35)); if (k <= 0) return;
+        let cx = x, cy = 170 + i * 56; if ('、。'.includes(c)) { cx += 25; cy -= 25; }
+        g.globalAlpha = out * k; g.fillText(c, cx, cy - (1 - k) * 30);
+      });
+    });
+  }
+  if (s.kanji) {
+    /* a huge brushed character cut off by the frame, a thin red rule, a small latin label */
+    const k = outX(seg(u, .02, .3));
+    g.globalAlpha = out * .92; g.fillStyle = BONE; g.font = brushF(430); g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = 'rgba(0,0,0,.7)'; g.shadowBlur = 30;
+    g.fillText(s.kanji, 300 + (1 - k) * 80, 470); g.shadowBlur = 0;
+    g.fillStyle = SHU; g.fillRect(40, 770, 120 * k, 3);
+    g.font = latin(15); g.textAlign = 'left'; g.fillStyle = BONE; g.globalAlpha = out * k;
+    g.fillText(s.label.split('').join(' '), 40, 800);
+  }
+  if (s.big) {
+    const k = outX(seg(u, .05, .3)), sc = lerp(1.8, 1, k);
+    g.save(); g.translate(270, 700); g.scale(sc, sc); g.globalAlpha = clamp(k * 2) * out;
+    g.font = mincho(800, 170); g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 30; g.fillStyle = SHU; g.fillText('AI', -24, 0);
+    g.fillStyle = BONE; g.font = mincho(800, 120); g.fillText('。', 128, 30);
+    g.restore();
+  }
+  g.restore();
+}
+
+/* ================= the sword cut ================= */
+const DUR_CUT = .42;
+/* a line through the centre at angle `a`; the old frame is split along it and the halves slide apart */
+function cut(g, drawOld, drawNew, a, k, seed) {
+  const cx = 270 + (hash(seed) - .5) * 80, cy = 480 + (hash(seed + 3) - .5) * 160;
+  const dx = Math.cos(a), dy = Math.sin(a), nx = -dy, ny = dx, L = 1400;
+  drawNew(g);
+  const open = outC(seg(k, .16, 1)), sep = 70 * open, slide = 60 * open;
+  for (const side of [-1, 1]) {
+    g.save();
+    g.beginPath();
+    g.moveTo(cx - dx * L, cy - dy * L); g.lineTo(cx + dx * L, cy + dy * L);
+    g.lineTo(cx + dx * L + nx * side * L, cy + dy * L + ny * side * L); g.lineTo(cx - dx * L + nx * side * L, cy - dy * L + ny * side * L); g.closePath();
+    g.translate(nx * side * sep + dx * side * slide, ny * side * sep + dy * side * slide);
+    g.clip(); g.globalAlpha = 1 - sm(seg(k, .55, 1)); drawOld(g);
+    g.restore();
+  }
+  /* the white-hot line draws across in the first sixth, then glows out */
+  const draw = seg(k, 0, .16), glow = 1 - sm(seg(k, .2, .8));
+  const x0 = cx - dx * L * draw, y0 = cy - dy * L * draw, x1 = cx + dx * L * draw, y1 = cy + dy * L * draw;
+  g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+  g.strokeStyle = `rgba(255,120,80,${.55 * glow})`; g.lineWidth = 16; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  g.strokeStyle = `rgba(255,255,255,${glow})`; g.lineWidth = 3; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  /* sparks thrown off the edge */
+  for (let i = 0; i < 26; i++) {
+    const p = (hash(i * 3 + seed) - .5) * 1.2, sx = cx + dx * p * 540, sy = cy + dy * p * 540, v = seg(k, .1, .9);
+    const sd = hash(i + seed * 2) > .5 ? 1 : -1, sp = 40 + hash(i * 7) * 160;
+    const px = sx + nx * sd * sp * v + dx * (hash(i) - .5) * 60 * v, py = sy + ny * sd * sp * v + 120 * v * v;
+    g.fillStyle = `rgba(255,${160 + hash(i) * 90 | 0},90,${(1 - v)})`; g.fillRect(px, py, 2, 2);
+  }
+  g.restore();
+}
+
+/* ================= frame chrome ================= */
+function bars(g, t) {
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, BAR_H); g.fillRect(0, LH - BAR_H, LW, BAR_H);
+  if (t >= LOGO) return;
+  const i = SHOTS.findIndex(s => t >= s.t && t < s.e);
+  g.font = latin(11); g.fillStyle = 'rgba(238,234,227,.7)'; g.textBaseline = 'middle';
+  g.textAlign = 'left'; g.fillText('A I   C H A L L E N G E   3 6 5', 28, BAR_H / 2);
+  g.textAlign = 'right'; g.fillStyle = SHU; g.fillText(`CUT ${String(i + 1).padStart(2, '0')}`, LW - 28, BAR_H / 2);
+  g.textAlign = 'left'; g.fillStyle = 'rgba(238,234,227,.45)';
+  const f = frameOf(t), tc = `${String(Math.floor(t)).padStart(2, '0')}:${String(f % FPS).padStart(2, '0')}`;
+  g.fillText(tc, 28, LH - BAR_H / 2);
+  g.textAlign = 'right'; g.fillText('一 閃', LW - 28, LH - BAR_H / 2);
+  g.fillStyle = SHU; g.fillRect(28, LH - BAR_H + 18, (LW - 56) * clamp(t / LOGO), 1);
+}
+function logo(g, t) {
+  const u = t - LOGO;
+  g.fillStyle = '#050505'; g.fillRect(0, 0, LW, LH);
+  /* a red horizontal cut, then the name assembles from its two halves */
+  const lk = seg(u, 0, .14), glow = 1 - sm(seg(u, .2, 1.2));
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.fillStyle = `rgba(224,48,30,${.9})`; g.fillRect(270 - 270 * lk, 479, 540 * lk, 2);
+  g.fillStyle = `rgba(255,140,100,${.5 * glow})`; g.fillRect(270 - 270 * lk, 474, 540 * lk, 12);
+  g.restore();
+  const jk = outC(seg(u, .15, .7));
+  g.save(); g.font = mincho(800, 52); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = BONE;
+  for (const side of [-1, 1]) {
+    g.save(); g.beginPath(); g.rect(0, side < 0 ? 0 : 480, LW, 480); g.clip();
+    g.translate(side * (1 - jk) * 60, side * (1 - jk) * 12); g.globalAlpha = clamp(jk * 1.5);
+    g.fillText('AIチャレンジ365', 270, 480); g.restore();
+  }
+  g.restore();
+  const ck = sm(seg(t, CUES.cta, CUES.cta + .4));
+  g.save(); g.globalAlpha = ck; g.textAlign = 'center';
+  g.font = latin(13); g.fillStyle = 'rgba(238,234,227,.6)'; g.fillText('A I   C H A L L E N G E   3 6 5', 270, 560);
+  g.font = mincho(600, 20); g.fillStyle = SHU; g.fillText('プロフィールのリンクから', 270, 650);
+  g.restore();
+  const ak = sm(seg(u, .5, 1.1));
+  g.save(); g.globalAlpha = ak; g.font = mincho(600, 18); g.fillStyle = 'rgba(238,234,227,.8)'; g.textAlign = 'center'; g.fillText('剣も、筆も、カメラもいらない。', 270, 395); g.restore();
+}
+
+/* ================= frame ================= */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const buf = document.createElement('canvas'), b = buf.getContext('2d');
+let S = 1, grains = [];
+function resize() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(Math.round(cv.clientWidth * d), 1080);
+  if (!w) return;
+  const h = Math.round(w * 16 / 9);
+  for (const c of [cv, buf]) { c.width = w; c.height = h; }
+  S = w / LW;
+  grains = [0, 1, 2, 3].map(k => { const c = document.createElement('canvas'); c.width = c.height = 160; const g = c.getContext('2d'), im = g.createImageData(160, 160); for (let i = 0; i < im.data.length; i += 4) { const v = hash(i * .51 + k * 17) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; } g.putImageData(im, 0, 0); return c; });
+  render(T);
+}
+function full(g, s, t) { shotPic(g, s, t); shotWords(g, s, t); }
+function scene(g, t) {
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  if (t >= LOGO) {
+    const k = seg(t, LOGO, LOGO + DUR_CUT);
+    if (k < 1) cut(g, gg => full(gg, SHOTS[SHOTS.length - 1], t), gg => logo(gg, t), -.03, k, 99);
+    else logo(g, t);
+    bars(g, t); return;
+  }
+  const i = SHOTS.findIndex(s => t >= s.t && t < s.e), s = SHOTS[i];
+  const k = seg(t, s.t, s.t + DUR_CUT);
+  if (i > 0 && k < 1) cut(g, gg => full(gg, SHOTS[i - 1], t), gg => full(gg, s, t), s.ang, k, i * 11);
+  else full(g, s, t);
+  bars(g, t);
+}
+function compose(t) {
+  const W = cv.width, H = cv.height, f = frameOf(t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  ctx.drawImage(buf, 0, 0);
+  if ('filter' in ctx) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .12; ctx.filter = `blur(${9 * S}px)`; ctx.drawImage(buf, 0, 0); ctx.restore(); ctx.filter = 'none'; }
+  /* a flash on each cut and on the drum strikes */
+  let fl = 0;
+  for (const c of CUES.slashes) { const v = t - c - .05; if (v >= 0 && v < .2) fl = Math.max(fl, .45 * (1 - v / .2)); }
+  for (const c of CUES.strikes) { const v = t - c; if (v >= 0 && v < .25) fl = Math.max(fl, .35 * (1 - v / .25)); }
+  { const v = t - CUES.ai; if (v >= 0 && v < .35) fl = Math.max(fl, .8 * (1 - v / .35)); }
+  if (fl > 0) { ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,245,235,${fl})`; ctx.fillRect(0, BAR_H * S, W, H - BAR_H * 2 * S); ctx.globalCompositeOperation = 'source-over'; }
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * .25, W / 2, H / 2, H * .66); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .13; ctx.fillStyle = ctx.createPattern(grains[f % 4], 'repeat'); ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  const fade = seg(t, DUR - .3, DUR); if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, W, H); }
+}
+let T = 0;
+function render(t) { T = t; if (!cv.width || !grains.length || !IM.samurai) return; scene(b, t); compose(t); updateUi(); }
+window.renderAt = t => render(clamp(t, 0, DUR - 1e-4));
+window.DUR = DUR; window.FPS = FPS;
+
+/* ================= transport + sound ================= */
+const LIST = SHOTS.map((s, i) => [s.t, String(i + 1).padStart(2, '0'), s.words ? s.words.join('') : s.kanji || s.big]).concat([[LOGO, '14', 'AIチャレンジ365']]);
+$('edl').innerHTML = LIST.map(([t, n, d]) => `<tr><td><button data-t="${t}"><span class="n">${n}</span><span class="t">${t.toFixed(2)}</span><span>${d}</span></button></td></tr>`).join('');
+const track = $('track');
+let playing = false, last = 0, soundOn = true, userStarted = false;
+function updateUi() {
+  $('seek').value = T; $('tc').innerHTML = `${T.toFixed(2)} <small>/ ${DUR.toFixed(2)} 秒</small>`;
+  let on = 0; LIST.forEach(([t], i) => { if (T >= t) on = i; });
+  document.querySelectorAll('#edl tr').forEach((tr, i) => tr.classList.toggle('on', i === on));
+}
+function syncAudio() {
+  if (!track) return;
+  if (!playing || !soundOn || !userStarted) { track.pause(); return; }
+  if (Math.abs(track.currentTime - T) > .05) track.currentTime = T;
+  track.play().catch(() => {});
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚ 止める' : '▶ 再生'; syncAudio(); if (p) { last = performance.now(); requestAnimationFrame(tick); } }
+function tick(now) {
+  if (!playing) return;
+  const audioClock = track && track.src && soundOn && userStarted && !track.paused && track.readyState >= 2;
+  let t = Math.max(0, audioClock ? track.currentTime : T + Math.max(0, now - last) / 1000); last = now;
+  if (t >= DUR - 1e-3) { if ($('loop').checked) { t = 0; if (audioClock) track.currentTime = 0; } else { t = DUR - 1e-3; setPlaying(false); } }
+  render(t); requestAnimationFrame(tick);
+}
+$('play').onclick = () => { userStarted = true; if (!playing && T >= DUR - .01) T = 0; setPlaying(!playing); };
+$('snd').onclick = () => { soundOn = !soundOn; userStarted = true; $('snd').textContent = soundOn ? '音 あり' : '音 なし'; $('snd').setAttribute('aria-pressed', soundOn); syncAudio(); };
+$('prev').onclick = () => { setPlaying(false); render(Math.max(0, (frameOf(T) - 1) / FPS)); };
+$('next').onclick = () => { setPlaying(false); render(Math.min(DUR - 1e-3, (frameOf(T) + 1) / FPS)); };
+$('seek').oninput = () => { setPlaying(false); render(+$('seek').value); };
+document.querySelectorAll('#edl button').forEach(el => el.onclick = () => { setPlaying(false); render(+el.dataset.t + .7); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') return;
+  if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key === 'ArrowRight') $('next').click();
+});
+
+/* ================= boot ================= */
+function build() {}
+new ResizeObserver(resize).observe(cv);
+Promise.all([loadImages(), ...[mincho(800, 46), brushF(430), latin(15)].map(f => document.fonts.load(f, '剣筆カメラ持たないのは紅祭福鯉灯富竹茶AIチャレンジ365一閃いらAEC'))]).catch(() => {}).then(() => {
+  resize(); render(B(20) + .8); window.__ready = true;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(() => { if (!userStarted) { render(0); setPlaying(true); } }, 1200);
+});
+</script>

@@ -8,7 +8,7 @@
 - 画面録画（mp4）やスクリーンショットをはめ込める
 - プロンプトを見せるための「コード枠」
 - 画面上部の進捗バー（最後まで見てもらいやすくする工夫）
-- 字幕ファイル（.srt）も同時に作成
+- 字幕ファイル（.srt）と、TikTok にそのまま貼れる説明文＋ハッシュタグ（_caption.txt）も同時に作成
 - `--photos` でフォトモード用の画像（PNG）を書き出し
 - BGM や、CapCut などで作った読み上げ音声を合成
 
@@ -65,6 +65,8 @@ python3 make_video.py scripts/sample_prompts.json --photos
 | `theme` | `dark` / `light` / `pop` / `green` |
 | `progress_bar` | 上部の進捗バー。`false` で消せます |
 | `page_numbers` | `true` で「1 / 7」のようなページ番号を表示（フォトモード向け） |
+| `caption` | TikTok の説明文。`\n` で改行 |
+| `hashtags` | ハッシュタグのリスト（例 `["#ChatGPT", "#AIチャレンジ365"]`） |
 | `bgm` / `bgm_volume` | BGM のファイルと音量（初期値 0.15）。短い曲は繰り返し再生されます |
 | `voice` / `voice_volume` | 読み上げ音声のファイルと音量 |
 
@@ -96,7 +98,7 @@ python3 make_video.py scripts/sample_prompts.json --photos
 3. 必要なら画面録画を撮る。Mac は `Cmd+Shift+5`、Windows は `Win+Alt+R`（10分）
 4. `python3 make_video.py scripts/2026-10-01.json`（1分）
 5. できた mp4 を CapCut に入れて、読み上げ音声・BGM・流行りの音源を付ける（10分）
-6. TikTok に投稿。キャプションとハッシュタグは台本と一緒に ChatGPT に作らせる（5分）
+6. TikTok に投稿。説明文とハッシュタグは `out/台本名_caption.txt` に書き出されているので、そのままコピーして貼る（5分）
 
 ## 5. 音声について
 

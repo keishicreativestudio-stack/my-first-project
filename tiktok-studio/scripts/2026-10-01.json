@@ -2,13 +2,69 @@
   "handle": "@aichallenge365",
   "series": "AIチャレンジ Day1",
   "theme": "dark",
+  "caption": "コードは1行も書かずに、指示は3行だけ。AIにゲームを作らせたら、5分で本当に遊べるのができた。\nAIが自分でテストプレイまでしていたのが一番びっくり。\n次は何を作らせる？コメントでリクエストください！",
+  "hashtags": [
+    "#ClaudeCode",
+    "#AIでゲーム作り",
+    "#個人開発",
+    "#プログラミング初心者",
+    "#生成AI",
+    "#AIチャレンジ365"
+  ],
   "scenes": [
-    {"style": "hook", "text": "AIに\n「**ゲーム作って**」\nって言っただけの結果…"},
-    {"label": "AIへの指示はこれだけ", "code": "スマホでも遊べる落ちものパズルゲームを、\nHTMLファイル1つで作って。\nスコアとゲームオーバー画面も付けて。", "text": ""},
-    {"text": "AIが**自分で遊んで**\nバグチェックまで（4倍速）", "clip": "rec/1001_screen.mov", "clip_crop": [0, 0, 1700, 1800], "clip_speed": 4, "clip_max": 5},
-    {"text": "完成したので\n**実際に遊んでみる**", "clip": "rec/1001_screen.mov", "clip_crop": [1710, 160, 1154, 1620], "clip_start": 48, "clip_speed": 2, "clip_max": 7},
-    {"text": "ゲームオーバー画面も\n**ちゃんと出た**", "clip": "rec/1001_screen.mov", "clip_crop": [1710, 160, 1154, 1620], "clip_start": 70, "clip_speed": 2, "clip_max": 7},
-    {"text": "かかった時間は\n**たったの5分**\nコードは1行も書いてない"},
-    {"style": "cta", "text": "次は何を作らせる？\n**コメントで募集中**"}
+    {
+      "style": "hook",
+      "text": "AIに\n「**ゲーム作って**」\nって言っただけの結果…"
+    },
+    {
+      "label": "AIへの指示はこれだけ",
+      "code": "スマホでも遊べる落ちものパズルゲームを、\nHTMLファイル1つで作って。\nスコアとゲームオーバー画面も付けて。",
+      "text": ""
+    },
+    {
+      "text": "AIが**自分で遊んで**\nバグチェックまで（4倍速）",
+      "clip": "rec/1001_screen.mov",
+      "clip_crop": [
+        0,
+        0,
+        1700,
+        1800
+      ],
+      "clip_speed": 4,
+      "clip_max": 5
+    },
+    {
+      "text": "完成したので\n**実際に遊んでみる**",
+      "clip": "rec/1001_screen.mov",
+      "clip_crop": [
+        1710,
+        160,
+        1154,
+        1620
+      ],
+      "clip_start": 48,
+      "clip_speed": 2,
+      "clip_max": 7
+    },
+    {
+      "text": "ゲームオーバー画面も\n**ちゃんと出た**",
+      "clip": "rec/1001_screen.mov",
+      "clip_crop": [
+        1710,
+        160,
+        1154,
+        1620
+      ],
+      "clip_start": 70,
+      "clip_speed": 2,
+      "clip_max": 7
+    },
+    {
+      "text": "かかった時間は\n**たったの5分**\nコードは1行も書いてない"
+    },
+    {
+      "style": "cta",
+      "text": "次は何を作らせる？\n**コメントで募集中**"
+    }
   ]
 }

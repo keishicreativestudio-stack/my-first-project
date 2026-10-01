@@ -434,6 +434,7 @@ def build(script_path, out_dir, fonts, ffmpeg, photos=False):
             first = next(clip_frames(ffmpeg, sc, 1)) if sc.spec.get("clip") else None
             sc.frame(bg, first, 0, 1, False).save(folder / f"{i + 1:02}.png")
         print(f"  → {folder}/ に {len(scenes)} 枚")
+        write_caption(cfg, out_dir, name)
         return
 
     durations = [auto_duration(s.spec, ffmpeg, s) for s in scenes]
@@ -495,6 +496,20 @@ def build(script_path, out_dir, fonts, ffmpeg, photos=False):
         for n, (a, b, txt) in enumerate(srt, 1):
             f.write(f"{n}\n{srt_time(a)} --> {srt_time(b)}\n{txt}\n\n")
     print(f"  → {out}（{total:.1f}秒 / {len(scenes)}シーン）")
+    write_caption(cfg, out_dir, name)
+
+
+def write_caption(cfg, out_dir, name):
+    """台本の caption と hashtags から、TikTok にそのまま貼れる説明文を書き出す。"""
+    caption, tags = cfg.get("caption", "").strip(), cfg.get("hashtags", [])
+    if not caption and not tags:
+        print("  ※ 台本に caption / hashtags がありません")
+        return
+    tags = [t if t.startswith("#") else "#" + t for t in tags]
+    text = caption + ("\n\n" if caption and tags else "") + " ".join(tags)
+    path = out_dir / f"{name}_caption.txt"
+    path.write_text(text + "\n", encoding="utf-8")
+    print(f"  → {path}（説明文 {len(text)}文字）")
 
 
 def main():

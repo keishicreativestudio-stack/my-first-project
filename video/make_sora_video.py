@@ -4,8 +4,8 @@
 Usage: python3 video/make_sora_video.py [out.mp4]
 Each shot is one image with a slow camera move; the script's sentences are
 shown one after another as captions, and each shot lasts as long as its
-captions need. Shots cross-fade. A generated ambient pad plays underneath,
-with a low rumble during the storm.
+captions need. Shots cross-fade. The scene-aware music comes from
+make_bgm.py (needs numpy).
 """
 import os
 import subprocess
@@ -213,18 +213,6 @@ def build_ass(path):
     return offset + END_D, storm
 
 
-def pad_expr():
-    # Am – F – C – G, 8 s per chord, each chord swelling over a low A drone.
-    chords = [(220.0, 261.63, 329.63), (174.61, 220.0, 261.63),
-              (196.0, 261.63, 329.63), (196.0, 246.94, 293.66)]
-    env = "pow(sin(PI*mod(t,8)/8),1.5)"
-    parts = []
-    for k, ch in enumerate(chords):
-        tones = "+".join(f"sin(2*PI*{f}*t)+0.3*sin(2*PI*{2 * f}*t)" for f in ch)
-        parts.append(f"eq(mod(floor(t/8),4),{k})*({tones})")
-    return f"0.05*sin(2*PI*110*t)+0.035*{env}*({'+'.join(parts)})"
-
-
 def main():
     for shot in SHOTS:
         for c in shot[6]:
@@ -237,7 +225,9 @@ def main():
             clips = list(ex.map(lambda a: render_shot(a[0], a[1], tmp), enumerate(SHOTS)))
 
         ass = os.path.join(tmp, "captions.ass")
-        total, (s0, s1) = build_ass(ass)
+        total, _ = build_ass(ass)
+        bgm = os.path.join(tmp, "bgm.wav")
+        run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "make_bgm.py"), bgm])
         durations = [TITLE_D] + [shot_duration(s[6]) for s in SHOTS] + [END_D]
 
         bg = f"color=c=0x0b1026:s={W}x{H}:r={FPS}"
@@ -245,10 +235,7 @@ def main():
         for c in clips:
             inputs += ["-i", c]
         inputs += ["-f", "lavfi", "-t", str(END_D), "-i", bg]
-        inputs += ["-f", "lavfi", "-t", f"{total:.2f}",
-                   "-i", "aevalsrc='" + pad_expr().replace(",", "\\,") + "':s=48000:c=stereo"]
-        inputs += ["-f", "lavfi", "-t", f"{s1 - s0:.2f}",
-                   "-i", "anoisesrc=color=brown:amplitude=0.5:sample_rate=48000"]
+        inputs += ["-i", bgm]
 
         n = len(durations)
         fg = [f"[{k}:v]settb=AVTB,fps={FPS},setsar=1[s{k}]" for k in range(n)]
@@ -258,12 +245,7 @@ def main():
             fg.append(f"{prev}[s{k}]xfade=transition=fade:duration={XF}:offset={offset:.3f}[v{k}]")
             prev = f"[v{k}]"
         fg.append(f"{prev}subtitles='{ass}',format=yuv420p[vout]")
-        fg.append(f"[{n}:a]lowpass=f=1800,aecho=0.8:0.7:120|260:0.35|0.25,volume=3.5[pad]")
-        fg.append(f"[{n + 1}:a]lowpass=f=300,aformat=channel_layouts=stereo,"
-                  f"afade=t=in:d=2.5,afade=t=out:st={s1 - s0 - 3:.2f}:d=3,"
-                  f"volume=0.5,adelay={int(s0 * 1000)}:all=1[storm]")
-        fg.append(f"[pad][storm]amix=inputs=2:duration=first:normalize=0,"
-                  f"afade=t=in:d=3,afade=t=out:st={total - 5:.2f}:d=5[aout]")
+        fg.append(f"[{n}:a]anull[aout]")
 
         run(["ffmpeg", "-y", *inputs, "-filter_complex", ";".join(fg),
              "-map", "[vout]", "-map", "[aout]", "-c:v", "libx264", "-crf", "26",

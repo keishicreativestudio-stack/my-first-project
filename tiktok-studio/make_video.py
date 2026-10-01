@@ -136,7 +136,7 @@ def wrap(chars, font, max_w):
     return lines
 
 
-def fit_text(chars, fonts, max_w, max_h, size_max, size_min, spacing=1.28):
+def fit_text(chars, fonts, max_w, max_h, size_max, size_min, spacing=1.28, keep_breaks=True):
     """枠に収まる一番大きい文字サイズを探す。
     自分で入れた改行の位置を優先し、1行が勝手に折り返されない大きさを選ぶ。"""
     manual_lines = sum(1 for c, _ in chars if c == "\n") + 1
@@ -147,7 +147,7 @@ def fit_text(chars, fonts, max_w, max_h, size_max, size_min, spacing=1.28):
         line_h = int(size * spacing)
         if len(lines) * line_h > max_h:
             continue
-        if len(lines) == manual_lines:
+        if not keep_breaks or len(lines) == manual_lines:
             return font, lines, line_h
         fallback = fallback or (font, lines, line_h)
     if fallback:
@@ -273,7 +273,8 @@ class Scene:
 
         code_block = None
         if code:
-            cf, clines, clh = fit_text([(c, False) for c in code], fonts, max_w - 90, 640, 54, 34, 1.45)
+            cf, clines, clh = fit_text([(c, False) for c in code], fonts, max_w - 90, 640, 52, 34, 1.45,
+                                         keep_breaks=False)  # プロンプトは折り返してよいので、どのページも同じ大きさにする
             ch = len(clines) * clh + 90
             code_block = (cf, clines, clh, ch)
 

@@ -157,19 +157,53 @@ def run(cmd):
         sys.exit(r.stderr[-3000:])
 
 
-def render_shot(i, shot, tmp):
-    img, z0, z1, (x0, y0), (x1, y1), shake, caps = shot
-    n = int(shot_duration(caps) * FPS)
-    p = f"(0.5-0.5*cos(PI*on/{n}))"
-    z = f"{z0}+({z1 - z0})*{p}"
-    cx = f"({x0}+({x1 - x0})*{p})"
-    cy = f"({y0}+({y1 - y0})*{p})"
-    x = f"clip({cx}*iw-iw/zoom/2,0,iw-iw/zoom)"
-    y = f"clip({cy}*ih-ih/zoom/2,0,ih-ih/zoom)"
-    if shake:
-        x = f"clip({cx}*iw-iw/zoom/2+18*sin(on*1.7)*sin(on*0.31),0,iw-iw/zoom)"
-        y = f"clip({cy}*ih-ih/zoom/2+12*sin(on*2.3)*cos(on*0.27),0,ih-ih/zoom)"
-    out = os.path.join(tmp, f"shot{i:02d}.mp4")
+def groups():
+    """Consecutive shots of the same image become one continuous clip."""
+    out = []
+    for i, shot in enumerate(SHOTS):
+        if out and SHOTS[out[-1][-1]][0] == shot[0]:
+            out[-1].append(i)
+        else:
+            out.append([i])
+    return out
+
+
+def group_duration(g):
+    return sum(shot_duration(SHOTS[i][6]) for i in g) - XF * (len(g) - 1)
+
+
+def render_group(gi, g, tmp):
+    """One image, camera moving through each shot's framing in turn."""
+    n = int(group_duration(g) * FPS)
+    segs, t = [], 0.0
+    prev_end = None
+    for j, i in enumerate(g):
+        _, z0, z1, c0, c1, shake, caps = SHOTS[i]
+        if prev_end:  # continue from where the previous framing stopped
+            z0, c0 = prev_end
+        start = 0 if j == 0 else int((t + XF / 2) * FPS)
+        t += shot_duration(caps) - XF
+        end = n if j == len(g) - 1 else int((t + XF / 2) * FPS)
+        segs.append((start, end, z0, z1, c0, c1, shake))
+        prev_end = (z1, c1)
+
+    def piecewise(f):
+        expr = None
+        for a, b, *rest in reversed(segs):
+            p = f"(0.5-0.5*cos(PI*(on-{a})/{b - a}))"
+            e = f(p, *rest)
+            expr = e if expr is None else f"if(lt(on,{b}),{e},{expr})"
+        return expr
+
+    z = piecewise(lambda p, z0, z1, c0, c1, sh: f"{z0}+({z1 - z0})*{p}")
+    x = piecewise(lambda p, z0, z1, c0, c1, sh:
+                  f"clip(({c0[0]}+({c1[0] - c0[0]})*{p})*iw-iw/zoom/2"
+                  + ("+18*sin(on*1.7)*sin(on*0.31)" if sh else "") + ",0,iw-iw/zoom)")
+    y = piecewise(lambda p, z0, z1, c0, c1, sh:
+                  f"clip(({c0[1]}+({c1[1] - c0[1]})*{p})*ih-ih/zoom/2"
+                  + ("+12*sin(on*2.3)*cos(on*0.27)" if sh else "") + ",0,ih-ih/zoom)")
+    img = SHOTS[g[0]][0]
+    out = os.path.join(tmp, f"shot{gi:02d}.mp4")
     vf = (f"scale=3840:2160:flags=lanczos,setsar=1,"
           f"zoompan=z='{z}':x='{x}':y='{y}':d={n}:s={W}x{H}:fps={FPS},format=yuv420p")
     run(["ffmpeg", "-y", "-loop", "1", "-i", os.path.join(SRC, f"scene-{img:02d}.jpg"),
@@ -222,13 +256,14 @@ def main():
 
     with tempfile.TemporaryDirectory() as tmp:
         with ThreadPoolExecutor(max_workers=4) as ex:
-            clips = list(ex.map(lambda a: render_shot(a[0], a[1], tmp), enumerate(SHOTS)))
+            gs = groups()
+            clips = list(ex.map(lambda a: render_group(a[0], a[1], tmp), enumerate(gs)))
 
         ass = os.path.join(tmp, "captions.ass")
         total, _ = build_ass(ass)
         bgm = os.path.join(tmp, "bgm.wav")
         run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "make_bgm.py"), bgm])
-        durations = [TITLE_D] + [shot_duration(s[6]) for s in SHOTS] + [END_D]
+        durations = [TITLE_D] + [group_duration(g) for g in gs] + [END_D]
 
         bg = f"color=c=0x0b1026:s={W}x{H}:r={FPS}"
         inputs = ["-f", "lavfi", "-t", str(TITLE_D), "-i", bg]
@@ -249,8 +284,8 @@ def main():
 
         run(["ffmpeg", "-y", *inputs, "-filter_complex", ";".join(fg),
              "-map", "[vout]", "-map", "[aout]", "-c:v", "libx264", "-crf", "26",
-             "-preset", "slow", "-tune", "stillimage", "-pix_fmt", "yuv420p",
-             "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-t", f"{total:.2f}", OUT])
+             "-maxrate", "1500k", "-bufsize", "3000k", "-preset", "slow", "-tune", "stillimage", "-pix_fmt", "yuv420p",
+             "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-t", f"{total:.2f}", OUT])
     print(f"wrote {OUT} ({total:.1f}s)")
 
 

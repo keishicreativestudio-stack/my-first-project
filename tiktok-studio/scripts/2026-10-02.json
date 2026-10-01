@@ -3,12 +3,49 @@
   "series": "AIチャレンジ Day2",
   "theme": "light",
   "scenes": [
-    {"style": "hook", "text": "献立に悩んだら\n冷蔵庫の中身を\n**AIに見せてみて**"},
-    {"text": "**こんな冷蔵庫**だったら？\n（イラストで再現）", "image": "rec/1002_fridge.png"},
-    {"label": "送ったのはこの一文", "code": "この冷蔵庫の中身で、3日分の夕飯の献立を考えて。\n・2人分、1食30分以内\n・今ある食材をできるだけ使い切る\n・足りない食材は買い物リストにまとめて", "text": ""},
-    {"text": "**3日分の献立**が\n一瞬で出てきた", "clip": "rec/1002_chatgpt.mp4", "clip_speed": 2, "clip_max": 6},
-    {"text": "足りない食材の\n**買い物リスト**まで", "clip": "rec/1002_chatgpt.mp4", "clip_start": 12, "clip_speed": 2, "clip_max": 5},
-    {"text": "使ったのは\n**写真1枚と一文**だけ"},
-    {"style": "cta", "text": "保存して\n**今夜さっそく**使って"}
+    {
+      "style": "hook",
+      "text": "献立に悩んだら\n冷蔵庫の中身を\n**AIに見せてみて**"
+    },
+    {
+      "text": "**こんな冷蔵庫**だったら？\n（イラストで再現）",
+      "image": "rec/1002_fridge.png"
+    },
+    {
+      "label": "送ったのはこの一文",
+      "code": "この冷蔵庫の中身で、3日分の夕飯の献立を考えて。\n・2人分、1食30分以内\n・今ある食材をできるだけ使い切る\n・足りない食材は買い物リストにまとめて",
+      "text": ""
+    },
+    {
+      "text": "AIが考えること\n**約1分**…",
+      "clip": "rec/1002_send.mp4",
+      "clip_crop": [
+        0,
+        120,
+        1180,
+        900
+      ],
+      "clip_start": 10,
+      "duration": 2.2
+    },
+    {
+      "text": "冷蔵庫の中身\n**9品ぜんぶ**読み取れてた",
+      "image": "rec/1002_read.png",
+      "duration": 3.2
+    },
+    {
+      "text": "**3日分の献立**が\nちゃんと出てきた",
+      "image": "rec/1002_menu.png",
+      "duration": 3.8
+    },
+    {
+      "text": "買い足すものも\n**たった4品**だけ",
+      "image": "rec/1002_shopping.png",
+      "duration": 3.5
+    },
+    {
+      "style": "cta",
+      "text": "保存して\n**今夜さっそく**使って"
+    }
   ]
 }

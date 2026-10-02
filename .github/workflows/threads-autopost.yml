@@ -1,0 +1,59 @@
+name: Threads 自動投稿
+
+on:
+  schedule:
+    # 日本時間 7:30 / 12:15 / 20:30（GitHub の cron は UTC。混雑で数分〜数十分遅れることがある）
+    - cron: "30 22 * * *"
+    - cron: "15 3 * * *"
+    - cron: "30 11 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "投稿せずに内容だけ確認する"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: threads-autopost
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: キューから1件投稿
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python3 threads/autopost.py post --dry-run
+          else
+            python3 threads/autopost.py post
+          fi
+
+      - name: 投稿済みファイルをコミット
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          git add -A threads/
+          if git diff --cached --quiet; then
+            echo "変更なし"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Threads: 投稿済みをアーカイブ"
+          for i in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            sleep $((i * 5))
+          done
+          exit 1

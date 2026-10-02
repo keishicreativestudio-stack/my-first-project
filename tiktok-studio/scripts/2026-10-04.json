@@ -3,13 +3,42 @@
   "series": "AIチャレンジ Day4",
   "theme": "green",
   "caption": "ChatGPTとClaudeに、同じお題でキャッチコピーを考えてもらった。\nどちらも1回目の答えをそのまま載せています。\nあなたならどっちの目覚まし時計を買う？コメントで1か2で教えて！",
-  "hashtags": ["#ChatGPT", "#Claude", "#AI比較", "#キャッチコピー", "#生成AI", "#AIチャレンジ365"],
+  "hashtags": [
+    "#ChatGPT",
+    "#Claude",
+    "#AI比較",
+    "#キャッチコピー",
+    "#生成AI",
+    "#AIチャレンジ365"
+  ],
   "scenes": [
-    {"style": "hook", "text": "ChatGPTとClaude\nコピーライターとして\n**優秀なのはどっち？**"},
-    {"label": "お題（両方に同じ文を送った）", "code": "朝が苦手な人向けの目覚まし時計に、キャッチコピーを1つだけつけて。\n20文字以内で。", "text": ""},
-    {"label": "① ChatGPT の答え", "text": "**（答えをここに）**", "image": "rec/1004_chatgpt.png", "duration": 3.5},
-    {"label": "② Claude の答え", "text": "**（答えをここに）**", "image": "rec/1004_claude.png", "duration": 3.5},
-    {"text": "買いたくなるのは\n**どっち？**\n\nコメントで\n「1」か「2」で教えて"},
-    {"style": "cta", "text": "次の対決のお題も\n**コメントで募集中**"}
+    {
+      "style": "hook",
+      "text": "ChatGPTとClaude\nコピーライターとして\n**優秀なのはどっち？**"
+    },
+    {
+      "label": "お題（両方に同じ文を送った）",
+      "code": "朝が苦手な人向けの目覚まし時計に、キャッチコピーを1つだけつけて。\n20文字以内で。",
+      "text": ""
+    },
+    {
+      "label": "① ChatGPT の答え",
+      "text": "**朝が変わる、\n目覚めが変わる。**",
+      "image": "rec/1004_chatgpt.png",
+      "duration": 3.5
+    },
+    {
+      "label": "② Claude の答え",
+      "text": "**「あと5分」を、\n起きる5分に変える。**",
+      "image": "rec/1004_claude.png",
+      "duration": 3.5
+    },
+    {
+      "text": "買いたくなるのは\n**どっち？**\n\nコメントで\n「1」か「2」で教えて"
+    },
+    {
+      "style": "cta",
+      "text": "次の対決のお題も\n**コメントで募集中**"
+    }
   ]
 }

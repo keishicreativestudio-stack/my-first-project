@@ -345,7 +345,7 @@ https://www.threads.com/@zero_ai_challenge365
 ◀ 前回：Day11｜AI副業を10日続けて分かった「作るだけでは稼げない」という現実
 https://note.com/ai_challenge365/n/n798aa4a2a3b9
 
-▶ 次回：Day13｜あれ、どこで調べた？」が増えすぎたので、Obsidianを使い始めました
+▶ 次回：Day13｜「あれ、どこで調べた？」が増えすぎたので、Obsidianを使い始めました
 https://note.com/ai_challenge365/n/n3853f7bf0b69
 
 ■ 最初から読む
@@ -402,7 +402,7 @@ https://www.threads.com/@zero_ai_challenge365
 
 ■ 前後の記事
 
-◀ 前回：Day13｜あれ、どこで調べた？」が増えすぎたので、Obsidianを使い始めました
+◀ 前回：Day13｜「あれ、どこで調べた？」が増えすぎたので、Obsidianを使い始めました
 https://note.com/ai_challenge365/n/n3853f7bf0b69
 
 ▶ 次回：Day15｜AI副業15日目のリアルな数字を全部公開

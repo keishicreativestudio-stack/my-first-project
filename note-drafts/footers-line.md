@@ -23,11 +23,6 @@ https://note.com/ai_challenge365/n/n3144cd3bba29
 
 ▶ 次回：Day3｜Claudeでショート動画を作ってみた。動画生成AIを使わない意外な方法
 https://note.com/ai_challenge365/n/n56a6d869fdc4
-
-■ 最初から読む
-
-▶ Day1｜AIが苦手だった僕が、365日AIに挑戦することにした
-https://note.com/ai_challenge365/n/n3144cd3bba29
 ```
 
 **Day3**

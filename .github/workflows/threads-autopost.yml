@@ -2,9 +2,8 @@ name: Threads 自動投稿
 
 on:
   schedule:
-    # 日本時間 7:30 / 12:15 / 20:30（GitHub の cron は UTC。混雑で数分〜数十分遅れることがある）
+    # 日本時間 7:30 / 20:30（GitHub の cron は UTC。混雑で数分〜数十分遅れることがある）
     - cron: "30 22 * * *"
-    - cron: "15 3 * * *"
     - cron: "30 11 * * *"
   workflow_dispatch:
     inputs:

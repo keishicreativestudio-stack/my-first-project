@@ -11,6 +11,7 @@
   - 1ファイル = 1投稿。ファイルの中身がそのまま投稿本文になる。
   - ファイル名が「YYYY-MM-DD_HHMM」で始まる場合、その日時（日本時間）を過ぎてから投稿する。
   - それ以外のファイルは、ファイル名順に「次の空き枠」で投稿する。
+  - 日時指定の投稿が予定より3時間以上遅れた場合は、投稿せず threads/skipped/ に移す。
   - 1回の実行で投稿するのは1件だけ。
   - 「_」または「.」で始まるファイルは無視する（下書き置き場に使える）。
   - 投稿後は threads/posted/ に移動し、投稿日時と投稿IDを先頭に記録する。
@@ -42,6 +43,9 @@ JST = timezone(timedelta(hours=9))
 ROOT = Path(__file__).resolve().parent
 QUEUE_DIR = ROOT / "queue"
 POSTED_DIR = ROOT / "posted"
+SKIPPED_DIR = ROOT / "skipped"
+# 日時指定の投稿がこれ以上遅れたら、古い話題になるので投稿せずに skipped/ へ移す
+STALE_AFTER = timedelta(hours=3)
 
 SCHEDULE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})")
 
@@ -116,6 +120,18 @@ def validate(path: Path) -> list[str]:
     return problems
 
 
+def skip_stale(now: datetime) -> list[Path]:
+    moved = []
+    for p in queue_files():
+        t = scheduled_time(p)
+        if t and now - t > STALE_AFTER:
+            SKIPPED_DIR.mkdir(parents=True, exist_ok=True)
+            dest = SKIPPED_DIR / p.name
+            p.rename(dest)
+            moved.append(dest)
+    return moved
+
+
 def get_user_id(token: str) -> str:
     user_id = os.environ.get("THREADS_USER_ID", "").strip()
     if user_id:
@@ -162,6 +178,9 @@ def archive(path: Path, post_id: str, now: datetime) -> Path:
 
 def cmd_post(args) -> int:
     now = datetime.now(JST)
+    if not args.dry_run:
+        for p in skip_stale(now):
+            print(f"::warning::{p.name} は予定時刻を{STALE_AFTER.seconds // 3600}時間以上過ぎたため投稿せず skipped/ に移しました")
     path = pick_next(now)
     if path is None:
         print("投稿待ちのファイルはありません。")

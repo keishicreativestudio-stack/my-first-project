@@ -1,0 +1,36 @@
+name: Threads トークン更新
+
+# Threads の長期アクセストークンは60日で切れるため、月2回更新して Secret を書き換える。
+# Secret の書き換えには、このリポジトリの Secrets に書き込める Personal Access Token（GH_PAT）が必要。
+
+on:
+  schedule:
+    - cron: "0 0 1,15 * *" # 毎月1日・15日 9:00（日本時間）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: トークンを更新して Secret を書き換え
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::GH_PAT が未設定です。threads/README.md の手順で設定してください（未設定の場合は60日ごとに手動でトークンを差し替えてください）"
+            exit 1
+          fi
+          NEW_TOKEN="$(python3 threads/autopost.py refresh)"
+          echo "::add-mask::$NEW_TOKEN"
+          printf '%s' "$NEW_TOKEN" | gh secret set THREADS_ACCESS_TOKEN --repo "$GITHUB_REPOSITORY"
+          echo "THREADS_ACCESS_TOKEN を更新しました"

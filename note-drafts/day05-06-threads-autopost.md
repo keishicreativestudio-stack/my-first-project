@@ -196,21 +196,32 @@ Google検索で解説記事を探すよりはずっと楽です。でも、ス�
 
 この流れを、Day14で書いた自動化ツール「n8n」でつなげられないか試しています。結果はまた記事にします。
 
----
-
-## 今日の成果物・リンク
-
-- Threads：https://www.threads.com/@zero_ai_challenge365
-- YouTube：https://www.youtube.com/@ai_challenge365-k
-- LINEスタンプ：https://store.line.me/stickershop/author/6667268
-
-**前の記事：** 【Day4のリンク】
-**次の記事：** 【Day7のリンク】
-**マガジン：** 【AIチャレンジ365 全記録 のリンク】
-
----
-
 SNSの自動投稿をやっている方、どのツールを使っていますか？
 「こっちの方が楽だよ」というものがあれば、ぜひコメントで教えてください。
+
+---
+
+■ AIチャレンジ365の成果物
+
+▼ 自動投稿で毎日の進捗を発信中のThreads
+https://www.threads.com/@zero_ai_challenge365
+
+▼ 顔出しなしで作ったショート動画
+https://www.youtube.com/@ai_challenge365-k
+
+▼ AIで作ったLINEスタンプ（現在11種類）
+https://store.line.me/stickershop/author/6667268
+
+■ 前後の記事
+
+◀ 前回：Day4｜AI副業、調べれば調べるほど何をすればいいか分からなくなった
+https://note.com/ai_challenge365/n/n8089bdfedf06
+
+▶ 次回：Day7｜AI初心者が1日1時間、7日間本気でAIを使ったらどこまでできた?
+https://note.com/ai_challenge365/n/n35378f0c2843
+
+■ 最初から読む
+
+【マガジン「AIチャレンジ365 全記録」のURL】
 
 #AIチャレンジ365 #Threads #自動化 #ChatGPT #AI初心者 #AI副業 #SNS運用

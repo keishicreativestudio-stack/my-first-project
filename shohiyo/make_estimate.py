@@ -100,7 +100,8 @@ def registration_rows(s):
     return rows
 
 
-JUDICIAL_SCRIVENER_FEE = 120000  # 司法書士報酬・登記事項証明等の実費（税込の目安）
+JUDICIAL_SCRIVENER_FEE = 120000
+FREE_FEE_REGISTRATION_ADD = 100000  # 仲介手数料が無料のときに登記費用へ加算する額  # 司法書士報酬・登記事項証明等の実費（税込の目安）
 
 
 # ---- 火災保険（5年・地震保険込の相場） ------------------------------------------
@@ -212,9 +213,12 @@ def build_items(s):
     items.append(('事務代行手数料', '（契約書類作成、物件調査、住宅ローン等の代行手数料　約5～10万円）',
                   0, OTHER_AGENT_ADMIN_FEE, True, None))
 
+    # 仲介手数料が無料の場合は登記費用に10万円を上乗せする
+    reg_add = FREE_FEE_REGISTRATION_ADD if plan == '無料' else 0
     items.append(('登記費用', '（所有権移転・保存登記、抵当権設定の手続きです。司法書士に支払います）',
-                  val('登記費用', '=ROUNDUP(E@REG@,-5)'), '=E@ROW@', True,
-                  '下記「登記費用の内訳」の合計を10万円単位で繰り上げ'))
+                  val('登記費用', '=ROUNDUP(E@REG@,-5)' + (f'+{reg_add}' if reg_add else '')), '=E@ROW@', True,
+                  '下記「登記費用の内訳」の合計を10万円単位で繰り上げ'
+                  + (f'、仲介手数料無料のため{reg_add // 10000}万円を加算' if reg_add else '')))
     if kind != '土地':
         premium, note = estimate_fire_insurance(s)
         items.append(('火災保険', '（火災保険約5年加入の場合です。地震保険込）',

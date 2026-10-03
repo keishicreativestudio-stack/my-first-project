@@ -13,6 +13,7 @@ import sys
 import warnings
 import zipfile
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from openpyxl import Workbook
 from openpyxl.comments import Comment
@@ -247,7 +248,7 @@ def write_workbook(s, out_path):
     wb = Workbook()
     ws = wb.active
     ws.title = '資金計算書'
-    for col, w in {'A': 12, 'B': 16, 'C': 23, 'D': 5, 'E': 22, 'F': 3, 'G': 5, 'H': 18}.items():
+    for col, w in {'A': 12, 'B': 18, 'C': 23, 'D': 10, 'E': 24, 'F': 3, 'G': 5, 'H': 22}.items():
         ws.column_dimensions[col].width = w
 
     def put(ref, value, size=12, bold=False, color=None, fmt=None, align=None, wrap=False):
@@ -340,7 +341,10 @@ def write_workbook(s, out_path):
     c.comment = Comment('既定は物件価格の全額借入（諸費用は自己資金）。変更すると自己資金・返済額が再計算されます', 'shohiyo')
     r = loan_row + 1
     ws.merge_cells(f'A{r}:H{r}')
-    put(f'A{r}', f"{loan['bank']}：借入期間{loan['years']}年間、{loan['rate_type']}年{loan['rate']}％　元利均等返済", 11)
+    rate_row = loan_row + 4  # 下の表の金利・期間の行
+    bank, rate_type = loan['bank'], loan['rate_type']
+    put(f'A{r}', f'="{bank}：借入期間"&E{rate_row}&"年間、{rate_type}年"'
+                 f'&TEXT(D{rate_row},"0.000")&"％　元利均等返済"', 11)
     ws.merge_cells(f'A{r + 1}:H{r + 1}')
     put(f'A{r + 1}', '※金利は金融機関・審査により異なります。一例です。', 10)
 
@@ -352,7 +356,7 @@ def write_workbook(s, out_path):
     b = h + 1
     put(f'B{b}', loan['bank'].replace('（仮）', ''), 11, align='center')
     put(f'C{b}', f'=E{loan_row}', 12, True, fmt=YEN, align='right')
-    put(f'D{b}', loan['rate'], 12, True, BLUE, align='center')
+    put(f'D{b}', loan['rate'], 12, True, BLUE, '0.000', 'center')  # 四捨五入表示にしない
     put(f'E{b}', loan['years'], 12, True, BLUE, align='center')
     ws.merge_cells(f'F{b}:H{b}')
     put(f'F{b}', f'=IF(AND(C{b}>0,D{b}>0,E{b}>0),ROUNDUP(INT((C{b}*(D{b}/1200)*(1+D{b}/1200)^(E{b}*12))'
@@ -392,7 +396,7 @@ def write_workbook(s, out_path):
         Comment('司法書士報酬と登記事項証明書等の実費（税込の目安）', 'shohiyo')
     r += 1
     assert r == reg_total
-    put(f'C{r}', '登記費用 計（上表には10万円単位で繰り上げて計上）', 9, True, align='right')
+    put(f'C{r}', '登記費用 計', 11, True, align='right').comment = Comment('上の諸経費には10万円単位で繰り上げて計上', 'shohiyo')
     put(f'E{r}', f'=SUM(E{reg_head + 1}:E{r - 1})', 12, True, None, YEN, 'right')
     for col in 'BCDE':
         ws[f'{col}{r}'].border = Border(top=thin)
@@ -438,7 +442,8 @@ def inject_cached_values(path):
         try:
             values[ref] = float(val)
         except (TypeError, ValueError):
-            continue
+            if isinstance(val, str) and not val.startswith('#'):
+                values[ref] = val
     with zipfile.ZipFile(path) as z:
         files = {n: z.read(n) for n in z.namelist()}
     sheet = 'xl/worksheets/sheet1.xml'
@@ -449,6 +454,9 @@ def inject_cached_values(path):
         if ref not in values:
             return m.group(0)
         num = values[ref]
+        if isinstance(num, str):
+            attrs = re.sub(r' t="[^"]*"', '', m.group(2))
+            return f'<c r="{ref}"{attrs} t="str">{body}<v>{escape(num)}</v></c>'
         if abs(num - round(num)) < 1e-6:  # 浮動小数点の誤差（399999.99999…）を整数に
             num = round(num)
         text = str(int(num)) if num == int(num) else repr(num)

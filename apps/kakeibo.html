@@ -45,9 +45,12 @@
   .amount input::placeholder { font-size: 20px; font-weight: 500; color: #a3aac0; }
   .amount input { border: 0; outline: 0; font-size: 28px; font-weight: 700; width: 100%; padding: 6px 0; background: transparent; color: var(--ink); font-variant-numeric: tabular-nums; }
   .cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .cats button { border: 2px solid var(--line); background: #fff; border-radius: 12px; padding: 10px 0; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; }
-  .cats button .dot { display: block; width: 10px; height: 10px; border-radius: 50%; margin: 0 auto 4px; }
-  .cats button[aria-pressed="true"] { border-color: currentColor; background: color-mix(in srgb, currentColor 10%, #fff); }
+  .cats input { position: absolute; opacity: 0; pointer-events: none; }
+  .cats label { display: block; text-align: center; border: 2px solid var(--line); background: #fff; border-radius: 12px; padding: 10px 0; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; user-select: none; -webkit-user-select: none; }
+  .cats .dot { display: block; width: 10px; height: 10px; border-radius: 50%; margin: 0 auto 4px; }
+  .cats input:checked + label { border-color: var(--ink); background: #eef1f8; }
+  .cats input:focus-visible + label { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .notice { background: #fff4e5; color: #8a4b00; border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.6; }
   .save { border: 0; border-radius: 14px; padding: 15px; font-size: 17px; font-weight: 800; background: var(--accent); color: #fff; cursor: pointer; }
   .save:disabled { opacity: .35; }
 
@@ -80,6 +83,8 @@
     <span id="month"></span>
   </header>
 
+  <div class="notice" id="notice">この開き方ではアプリが動いていません。ファイルを Safari（Android は Chrome）で開き直してください。</div>
+
   <section class="card total">
     <small>今月の合計</small>
     <div class="yen" id="total">¥0</div>
@@ -91,7 +96,12 @@
         <span>¥</span>
         <input id="amount" inputmode="numeric" placeholder="金額を入力" autocomplete="off" aria-label="金額">
       </label>
-      <div class="cats" id="cats"></div>
+      <div class="cats" id="cats" role="radiogroup" aria-label="カテゴリ">
+        <input type="radio" name="cat" id="cat-food" value="food" checked><label for="cat-food"><span class="dot" style="background:var(--food)"></span>食費</label>
+        <input type="radio" name="cat" id="cat-daily" value="daily"><label for="cat-daily"><span class="dot" style="background:var(--daily)"></span>日用品</label>
+        <input type="radio" name="cat" id="cat-transport" value="transport"><label for="cat-transport"><span class="dot" style="background:var(--transport)"></span>交通</label>
+        <input type="radio" name="cat" id="cat-other" value="other"><label for="cat-other"><span class="dot" style="background:var(--other)"></span>その他</label>
+      </div>
       <button class="save" id="save" type="submit" disabled>記録する</button>
     </form>
   </section>
@@ -123,25 +133,12 @@ let items = [];
 try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; }
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) {} };
 
-let selected = "food";
 const now = new Date();
 const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 document.getElementById("month").textContent = `${now.getFullYear()}年${now.getMonth() + 1}月`;
 
-// カテゴリのボタン
-const catsEl = document.getElementById("cats");
-CATS.forEach(c => {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.dataset.id = c.id;
-  b.style.color = c.color;
-  b.innerHTML = `<span class="dot" style="background:${c.color}"></span><span style="color:var(--ink)">${c.name}</span>`;
-  b.addEventListener("click", () => { selected = c.id; paintCats(); });
-  catsEl.appendChild(b);
-});
-function paintCats() {
-  catsEl.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === selected));
-}
+// カテゴリ（選ばれているラジオボタンを読む）
+const selectedCat = () => (document.querySelector('input[name="cat"]:checked') || {}).value || "food";
 
 // 金額の入力（数字だけ・3桁区切り）
 const amountEl = document.getElementById("amount");
@@ -158,11 +155,11 @@ document.getElementById("form").addEventListener("submit", e => {
   const v = amountValue();
   if (!v) return;
   const d = new Date();
-  items.push({ id: items.reduce((m, i) => Math.max(m, i.id), 0) + 1, amount: v, cat: selected, date: d.toISOString() });
+  items.push({ id: items.reduce((m, i) => Math.max(m, i.id), 0) + 1, amount: v, cat: selectedCat(), date: d.toISOString() });
   persist();
   amountEl.value = "";
   saveEl.disabled = true;
-  toast(`${CATS.find(c => c.id === selected).name} ${yen(v)} を記録しました`);
+  toast(`${CATS.find(c => c.id === selectedCat()).name} ${yen(v)} を記録しました`);
   render();
 });
 
@@ -229,7 +226,7 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove("show"), 1600);
 }
 
-paintCats();
+document.getElementById("notice").remove();
 render();
 </script>
 </body>

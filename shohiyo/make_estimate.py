@@ -226,11 +226,12 @@ def build_items(s):
         items.append(('表示登記費用', '（建物表題登記。土地家屋調査士に支払います）',
                       val('表示登記費用', 150000), '=E@ROW@', True, '概算（目安）'))
     if kind.endswith('マンション'):
-        mf, rr = s.get('management_fee') or 0, s.get('repair_reserve') or 0
-        settle = f'=ROUNDUP(({mf}+{rr})*2,-3)' if mf or rr else 60000
+        mf, rr, of = s.get('management_fee') or 0, s.get('repair_reserve') or 0, s.get('other_fee') or 0
+        settle = f'=ROUNDUP(({mf}+{rr}+{of})*2,-3)' if mf or rr else 60000
         items.append(('管理費・修繕積立金清算金', '（管理費・修繕積立金を日割清算します。約2ヶ月分）',
                       val('管理費・修繕積立金清算金', settle), '=E@ROW@', True,
-                      f"図面の管理費{mf:,}円＋修繕積立金{rr:,}円 × 2ヶ月（百の位を繰り上げ）" if mf or rr
+                      (f"図面の管理費{mf:,}円＋修繕積立金{rr:,}円" + (f"＋その他{of:,}円" if of else '')
+                       + " × 2ヶ月（百の位を繰り上げ）") if mf or rr
                       else '概算（図面に記載なし）'))
     if kind == '新築マンション' and s.get('initial_repair_fund'):
         items.append(('修繕積立基金', '（新築時に一括で支払う修繕積立基金）',

@@ -23,7 +23,7 @@ python3 shohiyo/make_estimate.py shohiyo/examples/sample_mansion.json 出力.xls
 | `assessed_land` `assessed_building` | | 固定資産税評価額（円）。分かれば指定。無ければ推定 |
 | `scrivener_fee` | | 司法書士報酬・実費（既定 120,000円） |
 | `built_year` | | 築年（西暦）。1981年以前は旧耐震の注記を追加 |
-| `management_fee` `repair_reserve` | | 管理費・修繕積立金（月額）。マンションの清算金 = 合計 × 2ヶ月 |
+| `management_fee` `repair_reserve` `other_fee` | | 管理費・修繕積立金・その他費用（自治会費等）の月額。マンションの清算金 = 合計 × 2ヶ月（百の位繰り上げ） |
 | `initial_repair_fund` | | 修繕積立基金（新築マンション） |
 | `loan` | | `amount`（既定: 物件価格）、`rate`（既定 1.195）、`years`（既定 35）、`bonus`（既定 0） |
 | `overrides` | | `{"登記費用": 480000}` のように概算値を上書き |

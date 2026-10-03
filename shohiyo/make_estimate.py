@@ -213,11 +213,10 @@ def build_items(s):
     items.append(('事務代行手数料', '（契約書類作成、物件調査、住宅ローン等の代行手数料　約5～10万円）',
                   0, OTHER_AGENT_ADMIN_FEE, True, None))
 
-    # 仲介手数料が無料の場合は REDS 側の登記費用に10万円を上乗せする（他社側は上乗せなし）
+    # 仲介手数料が無料の場合は登記費用に10万円を上乗せする（他社側も同額）
     reg_add = FREE_FEE_REGISTRATION_ADD if plan == '無料' else 0
     items.append(('登記費用', '（所有権移転・保存登記、抵当権設定の手続きです。司法書士に支払います）',
-                  val('登記費用', '=ROUNDUP(E@REG@,-5)' + (f'+{reg_add}' if reg_add else '')),
-                  '=ROUNDUP(E@REG@,-5)' if '登記費用' not in ov else '=E@ROW@', True,
+                  val('登記費用', '=ROUNDUP(E@REG@,-5)' + (f'+{reg_add}' if reg_add else '')), '=E@ROW@', True,
                   '下記「登記費用の内訳」の合計を10万円単位で繰り上げ'
                   + (f'、仲介手数料無料のため{reg_add // 10000}万円を加算' if reg_add else '')))
     if kind != '土地':

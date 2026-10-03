@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>仲介手数料計算</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --text:#1f2328; --muted:#6b7280; --line:#e5e7eb; --accent:#c8102e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181c; --card:#1f2228; --text:#e8e8e8; --muted:#9aa0a6; --line:#33373e; --accent:#ff6b7f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height:1.6; }
+  main { max-width:640px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.3rem; margin:0 0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-bottom:12px; }
+  .row > .label { width:6em; font-weight:600; }
+  input[type=text] { width:9em; padding:6px 8px; font-size:1rem; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); text-align:right; }
+  button { padding:7px 18px; font-size:1rem; border:0; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; }
+  .error { color:var(--accent); min-height:1.6em; margin:0; }
+  dl { display:grid; grid-template-columns: 1fr auto; gap:8px 12px; margin:0; }
+  dt { color:var(--muted); }
+  dd { margin:0; text-align:right; font-variant-numeric: tabular-nums; }
+  dd.big { font-size:1.4rem; font-weight:700; }
+  .red { color:var(--accent); font-weight:700; }
+  .hidden { display:none !important; }
+  small { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>仲介手数料計算（消費税10％）</h1>
+
+  <form id="calc" class="card">
+    <div class="row">
+      <span class="label">査定種別</span>
+      <label><input type="radio" name="kind" value="購入" checked> 購入</label>
+      <label><input type="radio" name="kind" value="売却"> 売却</label>
+    </div>
+    <div class="row">
+      <label class="label" for="price">物件価格</label>
+      <span><input type="text" id="price" value="0" inputmode="decimal"> 万円</span>
+      <button type="submit">計算</button>
+    </div>
+    <div class="row hidden" id="block-limit">
+      <span class="label">上限設定</span>
+      <label><input type="radio" name="limit" value="あり" checked> あり</label>
+      <label><input type="radio" name="limit" value="なし"> なし</label>
+    </div>
+    <p class="error" id="error"></p>
+  </form>
+
+  <div class="card">
+    <dl>
+      <dt>仲介手数料（税込）</dt><dd class="big"><span id="fee_and_tax">0</span>円</dd>
+      <dt>適用料率・内訳</dt><dd id="rate">　</dd>
+      <dt class="hidden" id="limit-dt">上限額</dt><dd class="hidden" id="limit-dd"></dd>
+      <dt>仲介手数料（税抜）</dt><dd><span id="fee">0</span>円</dd>
+      <dt>税額</dt><dd><span id="tax">0</span>円</dd>
+      <dt>法定上限の仲介手数料（税込）<br><small>物件価格 × 3％ ＋ 6万円 ＋ 消費税</small></dt><dd><span id="legal_fee_and_tax">0</span>円</dd>
+      <dt>法定上限との差額（税込）</dt><dd><span id="diff_of_fee">0</span>円</dd>
+      <dt class="red" id="discount-dt"></dt><dd class="red" id="discount-dd"></dd>
+    </dl>
+  </div>
+</main>
+
+<script src="calc.js"></script>
+<script>
+(function () {
+  const { TAX_RATE, calcBrokerageFee } = window.RedsCalc;
+  const $ = (id) => document.getElementById(id);
+  const form = $('calc');
+  const checked = (name) => form.querySelector(`input[name=${name}]:checked`).value;
+  const numberIds = ['fee_and_tax', 'fee', 'tax', 'legal_fee_and_tax', 'diff_of_fee'];
+
+  const reset = (msg) => {
+    $('error').textContent = msg;
+    numberIds.forEach((id) => { $(id).textContent = '0'; });
+    $('rate').textContent = '　';
+    $('limit-dt').classList.add('hidden');
+    $('limit-dd').classList.add('hidden');
+    $('discount-dt').textContent = '';
+    $('discount-dd').textContent = '';
+  };
+
+  const update = () => {
+    const input = $('price').value;
+    // 上限設定は「売却」かつ 1億円（10000万円）以上のときだけ表示
+    $('block-limit').classList.toggle('hidden', !(checked('kind') === '売却' && input >= 10000));
+
+    if (isNaN(input)) return reset('物件価格は半角数字を入力してください。');
+    if (input * 10000 < 600000) return reset('物件価格は60万円以上を入力してください。');
+    $('error').textContent = '';
+
+    const r = calcBrokerageFee({ price: input * 10000, kind: checked('kind'), feeLimit: checked('limit') });
+    $('fee_and_tax').textContent = r.feeAndTax.toLocaleString();
+    $('fee').textContent = r.fee.toLocaleString();
+    $('tax').textContent = r.tax.toLocaleString();
+    $('legal_fee_and_tax').textContent = r.legalFeeAndTax.toLocaleString();
+    $('diff_of_fee').textContent = r.diffOfFee.toLocaleString();
+    $('rate').textContent = (r.limitStr ? '約' : '') + `(${r.rate}%＋3万円)×${TAX_RATE}`;
+    $('limit-dt').classList.toggle('hidden', !r.limitStr);
+    $('limit-dd').classList.toggle('hidden', !r.limitStr);
+    $('limit-dd').textContent = r.limitStr;
+    $('discount-dt').textContent = '割引率';
+    $('discount-dd').textContent = r.discountRate.toLocaleString() + '%';
+  };
+
+  form.addEventListener('submit', (e) => { e.preventDefault(); update(); });
+  form.querySelectorAll('input[type=radio]').forEach((el) => el.addEventListener('change', update));
+})();
+</script>
+</body>
+</html>

@@ -240,6 +240,10 @@ def build_items(s):
     if kind == '新築マンション' and s.get('initial_repair_fund'):
         items.append(('修繕積立基金', '（新築時に一括で支払う修繕積立基金）',
                       s['initial_repair_fund'], '=E@ROW@', False, '販売図面記載額'))
+    # 図面に記載の追加費用（例: 省エネ性能証明書の発行費用）。REDS・他社とも同額
+    for extra in s.get('extra_costs') or []:
+        items.append((extra['name'], extra.get('desc', '（販売図面記載の費用です）'),
+                      extra['amount'], '=E@ROW@', False, '販売図面記載額'))
     items.append(('銀行事務手数料', '（銀行に支払うローン事務手数料です。融資額×2.2％）',
                   f'=INT(E@LOAN@*{BANK_FEE_RATE})', '=E@ROW@', True, '融資事務手数料型（定率2.2%）の場合'))
     items.append(('金消契約等印紙代', '（銀行との金銭消費貸借契約時に貼付する収入印紙代です。WEB契約では無料）',

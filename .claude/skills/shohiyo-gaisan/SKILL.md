@@ -22,6 +22,7 @@ description: 販売図面（PDF・画像）から物件の種別・価格など�
    | `built_year` | 築年月の西暦年 | 1981年以前なら旧耐震注記が自動で付く |
    | `management_fee` / `repair_reserve` / `other_fee` | 管理費・修繕積立金・その他費用（自治会費等）の月額 | マンションのみ |
    | `initial_repair_fund` | 修繕積立基金 | 新築マンションで記載があれば |
+   | `extra_costs` | 「別途○円が必要」等の注記 | ユーザーが入れると言ったものだけ `[{name, amount, desc}]` で追加（例: 省エネ性能証明書 55,000円）。注記は返信で必ず知らせる |
    | `floor_area` | 専有面積（壁芯）／建物面積 | ㎡の数値 |
    | `structure` | 構造 | 「鉄筋コンクリート造」「木造」など図面の表記のまま |
    | `assessed_land` / `assessed_building` | 固定資産税評価額 | 図面や資料に記載があるときだけ（円） |

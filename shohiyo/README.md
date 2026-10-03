@@ -25,6 +25,7 @@ python3 shohiyo/make_estimate.py shohiyo/examples/sample_mansion.json 出力.xls
 | `built_year` | | 築年（西暦）。1981年以前は旧耐震の注記を追加 |
 | `management_fee` `repair_reserve` `other_fee` | | 管理費・修繕積立金・その他費用（自治会費等）の月額。マンションの清算金 = 合計 × 2ヶ月（百の位繰り上げ） |
 | `initial_repair_fund` | | 修繕積立基金（新築マンション） |
+| `extra_costs` | | 図面記載の追加費用 `[{"name": "省エネ性能証明書発行費用", "amount": 55000, "desc": "（…）"}]`。REDS・他社とも同額 |
 | `loan` | | `amount`（既定: 物件価格）、`rate`（既定 1.195）、`years`（既定 35）、`bonus`（既定 0） |
 | `overrides` | | `{"登記費用": 480000}` のように概算値を上書き |
 

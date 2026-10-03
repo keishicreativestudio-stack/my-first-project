@@ -251,7 +251,7 @@ def write_workbook(s, out_path):
     wb = Workbook()
     ws = wb.active
     ws.title = '資金計算書'
-    for col, w in {'A': 12.08, 'B': 16.08, 'C': 22.91, 'D': 8.66, 'E': 23.91,
+    for col, w in {'A': 12.08, 'B': 16.08, 'C': 22.91, 'D': 11.5, 'E': 23.91,
                    'F': 2.58, 'G': 4.41, 'H': 16.5}.items():
         ws.column_dimensions[col].width = w
     ws.sheet_format.defaultRowHeight = 19.5

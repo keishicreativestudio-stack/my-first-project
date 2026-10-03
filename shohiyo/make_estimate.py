@@ -112,7 +112,7 @@ QUAKE_DISCOUNT = 0.9  # 建築年割引（1981年6月以降の建物）10%
 
 
 def estimate_fire_insurance(s):
-    """(保険料, 根拠メモ)。建物のみ（家財なし）、地震保険金額は火災の50%。千の位を繰り上げて万円単位。"""
+    """(保険料, 根拠メモ)。建物のみ（家財なし）、地震保険金額は火災の50%。高めに見て10万円単位で繰り上げ。"""
     kind = s['type']
     if kind == '土地':
         return 0, ''
@@ -130,10 +130,10 @@ def estimate_fire_insurance(s):
     fire = insured / 1e7 * FIRE_RATE[cls] * LONG_TERM_FIRE
     discount = QUAKE_DISCOUNT if not is_old_seismic(s.get('built_year')) else 1
     quake = insured * 0.5 / 1e7 * quake_rate * discount * LONG_TERM_QUAKE
-    total = -(-int(fire + quake) // 10000) * 10000
+    total = -(-int(fire + quake) // 100000) * 100000
     note = (f"相場目安: {cls}構造・建物保険金額{insured // 10000:,}万円（{area}㎡）、5年一括。"
             f"火災 約{int(fire):,}円＋地震（{pref or '所在地不明'}・{'イロ'[quake_cls]}構造・50%）約{int(quake):,}円。"
-            "家財は含まない。千の位を繰り上げ")
+            "家財は含まない。10万円単位で繰り上げ")
     return total, note
 
 
@@ -210,7 +210,8 @@ def build_items(s):
                   0, OTHER_AGENT_ADMIN_FEE, True, None))
 
     items.append(('登記費用', '（移転登記・保存登記・抵当権設定の登録免許税と司法書士報酬。内訳は下記）',
-                  val('登記費用', '=E@REG@'), '=E@ROW@', True, None))
+                  val('登記費用', '=ROUNDUP(E@REG@,-5)'), '=E@ROW@', True,
+                  '下記「登記費用の内訳」の合計を10万円単位で繰り上げ'))
     if kind != '土地':
         premium, note = estimate_fire_insurance(s)
         items.append(('火災保険', '（火災保険5年加入・地震保険込の相場）',
@@ -391,7 +392,7 @@ def write_workbook(s, out_path):
         Comment('司法書士報酬と登記事項証明書等の実費（税込の目安）', 'shohiyo')
     r += 1
     assert r == reg_total
-    put(f'C{r}', '登記費用 計', 11, True, align='right')
+    put(f'C{r}', '登記費用 計（上表には10万円単位で繰り上げて計上）', 9, True, align='right')
     put(f'E{r}', f'=SUM(E{reg_head + 1}:E{r - 1})', 12, True, None, YEN, 'right')
     for col in 'BCDE':
         ws[f'{col}{r}'].border = Border(top=thin)
@@ -448,6 +449,8 @@ def inject_cached_values(path):
         if ref not in values:
             return m.group(0)
         num = values[ref]
+        if abs(num - round(num)) < 1e-6:  # 浮動小数点の誤差（399999.99999…）を整数に
+            num = round(num)
         text = str(int(num)) if num == int(num) else repr(num)
         return f'<c r="{ref}"{m.group(2)}>{body}<v>{text}</v></c>'
 

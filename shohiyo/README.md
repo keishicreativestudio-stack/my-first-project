@@ -17,7 +17,11 @@ python3 shohiyo/make_estimate.py shohiyo/examples/sample_mansion.json 出力.xls
 | `deal` | | 取引態様 `仲介`（既定）/ `売主` / `代理` |
 | `fee_3pct` | | 図面に「手数料3%」等の記載があれば `true` |
 | `fee_plan` | | 省略時は自動: 売主・代理・`fee_3pct` → `無料`、それ以外 → `割引`（REDS calc10_2）。`半額` は明示指定のみ |
-| `name` `address` `customer` `staff` | | 物件名・所在地・お客様名・担当（既定「柴田」） |
+| `name` `address` `staff` | | 物件名・所在地・担当（既定「柴田」） |
+| `floor_area` | | 専有面積／建物面積（㎡）。火災保険・建物評価額の推定に使う |
+| `structure` | | 構造（`木造` / `鉄骨造` / `鉄筋コンクリート造` など） |
+| `assessed_land` `assessed_building` | | 固定資産税評価額（円）。分かれば指定。無ければ推定 |
+| `scrivener_fee` | | 司法書士報酬・実費（既定 120,000円） |
 | `built_year` | | 築年（西暦）。1981年以前は旧耐震の注記を追加 |
 | `management_fee` `repair_reserve` | | 管理費・修繕積立金（月額）。マンションの清算金 = 合計 × 2ヶ月 |
 | `initial_repair_fund` | | 修繕積立基金（新築マンション） |
@@ -30,6 +34,10 @@ python3 shohiyo/make_estimate.py shohiyo/examples/sample_mansion.json 出力.xls
 - 仲介手数料: REDS側は `fee_plan`、他社側は法定上限（税込）。`reds_fee.py` は `reds-calc/calc.js` の移植で、結果が一致することを確認済み
 - 事務代行手数料: REDS 0円 / 他社 55,000円
 - 融資事務手数料: 融資額 × 2.2%。金消契約印紙: 融資額から
-- 登記費用・火災保険・固都税清算・表示登記: 目安額（`make_estimate.py` の `estimate_*`）
+- 登記費用: 固定資産税評価額 × 登録免許税率（土地移転1.5%、建物移転0.3%／保存0.15%、抵当権0.1%。要件外は本則）＋司法書士報酬。
+  Excel 下部の「登記費用の内訳」で評価額を書き換えると再計算。評価額が無い場合の推定は `estimate_assessed_*`
+- 火災保険: 構造（M/T/H）・面積・所在地の都道府県から、5年一括・地震保険50%込の相場を計算し千の位を繰り上げ（`estimate_fire_insurance`）
+- 管理費・修繕積立金清算金: 月額合計 × 2ヶ月、百の位を繰り上げ
+- 固都税清算・表示登記: 目安額
 - 月々返済: 元利均等（元の Excel と同じ式）
 - 青字のセルは入力値。Excel 上で書き換えると再計算されます

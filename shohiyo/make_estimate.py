@@ -38,18 +38,103 @@ thin = Side(style='thin', color='FF999999')
 
 # ---- 概算ルール（図面からは分からない費用） -------------------------------------
 
-def estimate_registration(price, kind):
-    """登記費用（移転・保存・抵当権設定＋司法書士報酬）の概算。物件価格帯で決める。"""
-    brackets = [(20000000, 250000), (30000000, 300000), (40000000, 350000),
-                (50000000, 400000), (60000000, 450000), (80000000, 500000),
-                (100000000, 600000)]
-    fee = next((v for limit, v in brackets if price <= limit), 700000)
-    return fee - 50000 if kind == '土地' else fee  # 土地は建物の登記がない
+THIS_YEAR = datetime.date.today().year
 
 
-def estimate_fire_insurance(kind):
-    """火災保険（5年・地震保険込）の概算。"""
-    return {'土地': 0, '新築マンション': 200000, '中古マンション': 200000}.get(kind, 350000)
+def building_age(s):
+    if s['type'].startswith('新築'):
+        return 0
+    return THIS_YEAR - s['built_year'] if s.get('built_year') else 20
+
+
+def is_wood(s):
+    return '木' in (s.get('structure') or ('木造' if s['type'].endswith('戸建') else 'RC'))
+
+
+def prefecture(address):
+    m = re.match(r'(東京都|北海道|(?:京都|大阪)府|.{2,3}県)', address or '')
+    return m.group(1) if m else ''
+
+
+# ---- 登記費用（固定資産税評価額から計算） ---------------------------------------
+# 評価額が図面に無い場合の推定。分かれば JSON の assessed_land / assessed_building で指定する。
+
+def estimate_assessed_land(s):
+    """土地（マンションは敷地権の持分）の固定資産税評価額の推定。"""
+    ratio = {'新築マンション': 0.08, '中古マンション': 0.08, '新築戸建': 0.35, '中古戸建': 0.40, '土地': 0.70}
+    return round(s['price'] * ratio[s['type']], -4)
+
+
+def estimate_assessed_building(s):
+    """建物の固定資産税評価額の推定（新築は法務局の認定価格相当）。床面積 × 再建築費単価 × 経年残価率。"""
+    if s['type'] == '土地':
+        return 0
+    age = building_age(s)
+    if s['type'].endswith('マンション'):
+        area, unit, decay = s.get('floor_area') or 70, 150000, 0.015
+    elif is_wood(s):
+        area, unit, decay = s.get('floor_area') or 100, 110000, 0.045
+    else:
+        area, unit, decay = s.get('floor_area') or 100, 150000, 0.015
+    return round(area * unit * max(0.2, 1 - decay * age), -4)
+
+
+def registration_rows(s):
+    """登記費用の内訳: (登記の種類, 課税標準(値 or 式), 税率, 根拠)。"""
+    rows = [('土地 所有権移転', s.get('assessed_land', estimate_assessed_land(s)), 0.015,
+             '土地の売買による所有権移転登記の軽減税率1.5%（本則2%）')]
+    if s['type'] != '土地':
+        area_ok = (s.get('floor_area') or 50) >= 50
+        new_seismic = s['type'].startswith('新築') or not is_old_seismic(s.get('built_year'))
+        if s['type'].startswith('新築'):
+            rows.append(('建物 所有権保存', s.get('assessed_building', estimate_assessed_building(s)),
+                         0.0015 if area_ok else 0.004, '住宅用家屋の所有権保存登記 0.15%（本則0.4%）'))
+        else:
+            rate = 0.003 if area_ok and new_seismic else 0.02
+            rows.append(('建物 所有権移転', s.get('assessed_building', estimate_assessed_building(s)), rate,
+                         '住宅用家屋の所有権移転登記 0.3%（床面積50㎡以上・新耐震。該当しなければ本則2%）'))
+    rows.append(('抵当権設定', '=E@LOAN@', 0.001, '住宅用家屋の抵当権設定登記 0.1%（本則0.4%）。課税標準は融資額'))
+    return rows
+
+
+JUDICIAL_SCRIVENER_FEE = 120000  # 司法書士報酬・登記事項証明等の実費（税込の目安）
+
+
+# ---- 火災保険（5年・地震保険込の相場） ------------------------------------------
+# 年額保険料（保険金額1,000万円あたり）の目安
+FIRE_RATE = {'M': 5000, 'T': 9000, 'H': 16000}
+QUAKE_RATE = {  # 地震保険（イ構造, ロ構造）。2022年10月改定の基本料率の目安
+    '東京都': (27500, 42200), '神奈川県': (27500, 42200), '千葉県': (27500, 42200), '静岡県': (27500, 42200),
+}
+QUAKE_RATE_DEFAULT = (11600, 23000)
+LONG_TERM_FIRE, LONG_TERM_QUAKE = 4.7, 4.65  # 5年一括の係数
+QUAKE_DISCOUNT = 0.9  # 建築年割引（1981年6月以降の建物）10%
+
+
+def estimate_fire_insurance(s):
+    """(保険料, 根拠メモ)。建物のみ（家財なし）、地震保険金額は火災の50%。千の位を繰り上げて万円単位。"""
+    kind = s['type']
+    if kind == '土地':
+        return 0, ''
+    if kind.endswith('マンション'):
+        area, unit, cls = s.get('floor_area') or 70, 200000, 'M'
+    elif is_wood(s):
+        area, unit = s.get('floor_area') or 100, 180000
+        cls = 'T' if kind.startswith('新築') else 'H'
+    else:
+        area, unit, cls = s.get('floor_area') or 100, 220000, 'T'
+    insured = int(round(area * unit, -5))
+    quake_cls = 0 if cls in ('M', 'T') else 1
+    pref = prefecture(s.get('address'))
+    quake_rate = QUAKE_RATE.get(pref, QUAKE_RATE_DEFAULT)[quake_cls]
+    fire = insured / 1e7 * FIRE_RATE[cls] * LONG_TERM_FIRE
+    discount = QUAKE_DISCOUNT if not is_old_seismic(s.get('built_year')) else 1
+    quake = insured * 0.5 / 1e7 * quake_rate * discount * LONG_TERM_QUAKE
+    total = -(-int(fire + quake) // 10000) * 10000
+    note = (f"相場目安: {cls}構造・建物保険金額{insured // 10000:,}万円（{area}㎡）、5年一括。"
+            f"火災 約{int(fire):,}円＋地震（{pref or '所在地不明'}・{'イロ'[quake_cls]}構造・50%）約{int(quake):,}円。"
+            "家財は含まない。千の位を繰り上げ")
+    return total, note
 
 
 def estimate_property_tax(kind):
@@ -124,12 +209,12 @@ def build_items(s):
     items.append(('事務代行手数料', '（契約書類作成、物件調査、住宅ローン等の代行手数料　約5～10万円）',
                   0, OTHER_AGENT_ADMIN_FEE, True, None))
 
-    items.append(('登記費用', '（移転登記・保存登記・抵当権設定の登録免許税と司法書士報酬）',
-                  val('登記費用', estimate_registration(price, kind)), '=E@ROW@', True,
-                  '概算（物件価格帯による目安）。固定資産税評価額が分かれば司法書士見積で差し替え'))
+    items.append(('登記費用', '（移転登記・保存登記・抵当権設定の登録免許税と司法書士報酬。内訳は下記）',
+                  val('登記費用', '=E@REG@'), '=E@ROW@', True, None))
     if kind != '土地':
-        items.append(('火災保険', '（火災保険5年加入・地震保険込の目安）',
-                      val('火災保険', estimate_fire_insurance(kind)), '=E@ROW@', True, '概算（目安）'))
+        premium, note = estimate_fire_insurance(s)
+        items.append(('火災保険', '（火災保険5年加入・地震保険込の相場）',
+                      val('火災保険', premium), '=E@ROW@', True, note))
     items.append(('固定資産税・都市計画税清算金', '（固定資産税・都市計画税の年間支払額を引渡日で日割清算します）',
                   val('固定資産税・都市計画税清算金', estimate_property_tax(kind)), '=E@ROW@', True,
                   '概算（目安）。年税額が分かれば日割で差し替え'))
@@ -137,10 +222,12 @@ def build_items(s):
         items.append(('表示登記費用', '（建物表題登記。土地家屋調査士に支払います）',
                       val('表示登記費用', 150000), '=E@ROW@', True, '概算（目安）'))
     if kind.endswith('マンション'):
-        monthly = (s.get('management_fee') or 0) + (s.get('repair_reserve') or 0)
+        mf, rr = s.get('management_fee') or 0, s.get('repair_reserve') or 0
+        settle = f'=ROUNDUP(({mf}+{rr})*2,-3)' if mf or rr else 60000
         items.append(('管理費・修繕積立金清算金', '（管理費・修繕積立金の日割清算。約2ヶ月分）',
-                      val('管理費・修繕積立金清算金', monthly * 2 if monthly else 60000), '=E@ROW@', True,
-                      f"図面の管理費＋修繕積立金 月額{monthly:,}円 × 2ヶ月" if monthly else '概算（図面に記載なし）'))
+                      val('管理費・修繕積立金清算金', settle), '=E@ROW@', True,
+                      f"図面の管理費{mf:,}円＋修繕積立金{rr:,}円 × 2ヶ月（百の位を繰り上げ）" if mf or rr
+                      else '概算（図面に記載なし）'))
     if kind == '新築マンション' and s.get('initial_repair_fund'):
         items.append(('修繕積立基金', '（新築時に一括で支払う修繕積立基金）',
                       s['initial_repair_fund'], '=E@ROW@', False, '販売図面記載額'))
@@ -173,8 +260,6 @@ def write_workbook(s, out_path):
         return c
 
     # 見出し
-    ws.merge_cells('A1:B2')
-    put('A1', f"{s.get('customer', '')}　様", 16, True, align='center')
     ws.merge_cells('C1:E2')
     put('C1', '資金計算書（概算）', 16, True, align='center')
     ws.merge_cells('F1:H1')
@@ -190,11 +275,6 @@ def write_workbook(s, out_path):
     put('A5', '物件所在地', bold=True)
     ws.merge_cells('B5:H5')
     put('B5', s.get('address', ''), align='left')
-    put('A6', '種別', bold=True)
-    ws.merge_cells('B6:H6')
-    extra = '　旧耐震の可能性あり' if is_old_seismic(s.get('built_year')) else ''
-    built = f"　築{s['built_year']}年" if s.get('built_year') else ''
-    put('B6', f"{s['type']}　取引態様：{s['deal']}{built}{extra}", align='left')
 
     put('A8', '物件価格', bold=True)
     put('C8', '売買代金', 12, align='right')
@@ -212,8 +292,12 @@ def write_workbook(s, out_path):
     sub_row = first + len(items) * 2
     total_row, diff_row = sub_row + 2, sub_row + 4
     own_row, loan_row = sub_row + 6, sub_row + 8
+    reg = registration_rows(s)
+    reg_head = loan_row + 10  # 住宅ローン明細の下
+    reg_total = reg_head + 1 + len(reg) + 1
     for name, desc, reds, other, approx, note in items:
-        fill = lambda v: v.replace('@ROW@', str(row)).replace('@LOAN@', str(loan_row)) if isinstance(v, str) else v
+        fill = lambda v: (v.replace('@ROW@', str(row)).replace('@LOAN@', str(loan_row))
+                          .replace('@REG@', str(reg_total))) if isinstance(v, str) else v
         ws.merge_cells(f'B{row}:C{row}')
         put(f'B{row}', name, 14, True)
         if approx:
@@ -283,12 +367,41 @@ def write_workbook(s, out_path):
     put(f'D{y + 2}', '年2回', 10, align='center')
     put(f'E{y + 2}', loan['bonus'], 14, True, BLUE, YEN, 'right')
 
+    # 登記費用の内訳（固定資産税評価額から計算）
+    assert reg_head == y + 4
+    ws.merge_cells(f'A{reg_head}:B{reg_head}')
+    put(f'A{reg_head}', '登記費用の内訳', bold=True)
+    for col, label in zip('CDE', ('課税標準(評価額等)', '税率', '登録免許税')):
+        put(f'{col}{reg_head}', label, 10, True, align='center')
+    r = reg_head + 1
+    for label, base, rate, why in reg:
+        put(f'B{r}', label, 11)
+        base_val = base.replace('@LOAN@', str(loan_row)) if isinstance(base, str) else base
+        c = put(f'C{r}', base_val, 11, False, None if isinstance(base, str) else BLUE, YEN, 'right')
+        if not isinstance(base, str):
+            given = ('assessed_land' if label.startswith('土地') else 'assessed_building') in s
+            c.comment = Comment('固定資産税評価額（評価証明書の値）' if given else
+                                '固定資産税評価額の推定値です。評価証明書・公課証明の値が分かれば書き換えてください', 'shohiyo')
+        d = put(f'D{r}', rate, 11, False, BLUE, '0.00%', 'center')
+        d.comment = Comment(why, 'shohiyo')
+        put(f'E{r}', f'=IF(C{r}<=0,0,MAX(1000,ROUNDDOWN(ROUNDDOWN(C{r},-3)*D{r},-2)))', 11, False, None, YEN, 'right')
+        r += 1
+    put(f'B{r}', '司法書士報酬・実費', 11)
+    put(f'E{r}', s.get('scrivener_fee', JUDICIAL_SCRIVENER_FEE), 11, False, BLUE, YEN, 'right').comment = \
+        Comment('司法書士報酬と登記事項証明書等の実費（税込の目安）', 'shohiyo')
+    r += 1
+    assert r == reg_total
+    put(f'C{r}', '登記費用 計', 11, True, align='right')
+    put(f'E{r}', f'=SUM(E{reg_head + 1}:E{r - 1})', 12, True, None, YEN, 'right')
+    for col in 'BCDE':
+        ws[f'{col}{r}'].border = Border(top=thin)
+
     notes = ['※当該計算書の金額は作成時での概算のものであり、実際のお支払い額と異なる場合がございます。',
              '※上記費用の他、不動産取得後に不動産取得税の納税が必要となる場合があります。納期は各都道府県により異なります。']
     if is_old_seismic(s.get('built_year')):
         notes.append('※耐震基準適合証明書の発行（費用約5～6万円）を受けると、住宅ローン減税、不動産取得税・登録免許税の'
                      '減税の適用を受けることができる場合がございます。')
-    n = y + 4
+    n = reg_total + 2
     for text in notes:
         ws.merge_cells(f'A{n}:H{n}')
         put(f'A{n}', text, 9, wrap=True)

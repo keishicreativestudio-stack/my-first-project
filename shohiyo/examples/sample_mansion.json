@@ -6,5 +6,7 @@
   "price": 61800000,
   "built_year": 2012,
   "management_fee": 15000,
-  "repair_reserve": 12000
+  "repair_reserve": 12000,
+  "floor_area": 60.5,
+  "structure": "鉄筋コンクリート造"
 }

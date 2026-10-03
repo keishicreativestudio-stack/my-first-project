@@ -52,7 +52,7 @@
   .cats input:focus-visible + label { outline: 2px solid var(--ink); outline-offset: 2px; }
   .notice { background: #fff4e5; color: #8a4b00; border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.6; }
   .save { border: 0; border-radius: 14px; padding: 15px; font-size: 17px; font-weight: 800; background: var(--accent); color: #fff; cursor: pointer; }
-  .save:disabled { opacity: .35; }
+  .save:active { opacity: .8; }
 
   .chart { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: center; }
   .chart svg { width: 150px; height: 150px; }
@@ -102,7 +102,7 @@
         <input type="radio" name="cat" id="cat-transport" value="transport"><label for="cat-transport"><span class="dot" style="background:var(--transport)"></span>交通</label>
         <input type="radio" name="cat" id="cat-other" value="other"><label for="cat-other"><span class="dot" style="background:var(--other)"></span>その他</label>
       </div>
-      <button class="save" id="save" type="submit" disabled>記録する</button>
+      <button class="save" id="save" type="submit">記録する</button>
     </form>
   </section>
 
@@ -142,23 +142,29 @@ const selectedCat = () => (document.querySelector('input[name="cat"]:checked') |
 
 // 金額の入力（数字だけ・3桁区切り）
 const amountEl = document.getElementById("amount");
-const saveEl = document.getElementById("save");
-const amountValue = () => parseInt(amountEl.value.replace(/[^0-9]/g, ""), 10) || 0;
-amountEl.addEventListener("input", () => {
+// 全角数字（１２３）も半角にしてから読む
+const toHalf = t => t.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+const amountValue = () => parseInt(toHalf(amountEl.value).replace(/[^0-9]/g, ""), 10) || 0;
+const formatAmount = () => {
   const v = amountValue();
   amountEl.value = v ? v.toLocaleString("ja-JP") : "";
-  saveEl.disabled = !v;
-});
+};
+// 日本語入力の変換中は書き換えない（変換が終わってから3桁区切りにする）
+amountEl.addEventListener("input", e => { if (!e.isComposing) formatAmount(); });
+amountEl.addEventListener("compositionend", formatAmount);
 
 document.getElementById("form").addEventListener("submit", e => {
   e.preventDefault();
   const v = amountValue();
-  if (!v) return;
+  if (!v) {
+    toast("金額を入れてください");
+    amountEl.focus();
+    return;
+  }
   const d = new Date();
   items.push({ id: items.reduce((m, i) => Math.max(m, i.id), 0) + 1, amount: v, cat: selectedCat(), date: d.toISOString() });
   persist();
   amountEl.value = "";
-  saveEl.disabled = true;
   toast(`${CATS.find(c => c.id === selectedCat()).name} ${yen(v)} を記録しました`);
   render();
 });

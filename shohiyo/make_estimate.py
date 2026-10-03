@@ -24,6 +24,8 @@ from reds_fee import reds_fee  # noqa: E402
 TYPES = ('新築戸建', '中古戸建', '新築マンション', '中古マンション', '土地')
 DEALS = ('仲介', '売主', '代理')
 FEE_PLANS = ('割引', '無料', '半額')
+STAFF = '柴田'
+LOAN_RATE = 1.195  # 標準の金利（%）
 OTHER_AGENT_ADMIN_FEE = 55000  # 他社の事務代行手数料（税込）
 BANK_FEE_RATE = 0.022  # 融資事務手数料（融資額 × 2.2%）
 
@@ -64,16 +66,21 @@ def is_old_seismic(built_year):
 
 def normalize(spec):
     s = dict(spec)
+    s['_given'] = tuple(spec)
     if s.get('type') not in TYPES:
         raise ValueError(f"type は {TYPES} のいずれか: {s.get('type')!r}")
     if s.get('deal', '仲介') not in DEALS:
         raise ValueError(f"deal は {DEALS} のいずれか: {s.get('deal')!r}")
     s['deal'] = s.get('deal', '仲介')
     s['price'] = int(s['price'])
-    s.setdefault('fee_plan', '割引')
+    # 仲介手数料の既定: 図面が「売主」「代理」、または「手数料3%」等（売主側が手数料を負担）の記載なら無料。
+    # 「仲介」「媒介」「専任」「専属」なら割引。
+    if 'fee_plan' not in s:
+        s['fee_plan'] = '無料' if s['deal'] in ('売主', '代理') or s.get('fee_3pct') else '割引'
+    s.setdefault('staff', STAFF)
     if s['fee_plan'] not in FEE_PLANS:
         raise ValueError(f"fee_plan は {FEE_PLANS} のいずれか: {s['fee_plan']!r}")
-    loan = {'amount': None, 'rate': 0.945, 'years': 35, 'bonus': 0,
+    loan = {'amount': None, 'rate': LOAN_RATE, 'years': 35, 'bonus': 0,
             'bank': '（仮）都市銀行', 'rate_type': '変動金利'}
     loan.update(s.get('loan') or {})
     if loan['amount'] is None:
@@ -98,27 +105,24 @@ def build_items(s):
                   '=E@ROW@', False, '印紙税法 別表第一 第1号文書・租税特別措置法の軽減税率（2027年3月31日まで）'))
 
     legal = '=INT(IF(E8<=2000000,INT(E8*0.05),IF(E8<=4000000,INT(100000+(E8-2000000)*0.04),INT(E8*0.03+60000)))*1.1)'
-    if s['deal'] in ('売主', '代理'):
-        items.append(('仲介手数料（不要）', f"（取引態様が「{s['deal']}」のため仲介手数料はかかりません）",
-                      0, 0, False, None))
+    plan = s['fee_plan']
+    if plan == '無料':
+        reds = 0
+        reason = '取引態様が' + s['deal'] if s['deal'] != '仲介' else '図面に手数料3%等の記載'
+        note = f"{reason}のため無料" if 'fee_plan' not in s.get('_given', ()) else None
+    elif plan == '半額':
+        reds = '=INT(H@ROW@/2)'
+        note = '他社（法定上限）の半額'
     else:
-        plan = s['fee_plan']
-        if plan == '無料':
-            reds = 0
-            note = None
-        elif plan == '半額':
-            reds = '=INT(H@ROW@/2)'
-            note = '他社（法定上限）の半額'
-        else:
-            r = reds_fee(price)
-            reds = r['fee_and_tax']
-            note = (f"REDS手数料計算（calc10_2）で算出: ({r['rate']}%＋3万円)×1.1"
-                    + (f"、上限 {r['limit_str']}" if r['limit_str'] else '')
-                    + f"／割引率 {r['discount_rate']}%")
-        items.append((f'仲介手数料（{plan}）', '（一般的な仲介手数料は、物件価格の3％＋6万円に消費税）',
-                      val('仲介手数料', reds), legal, False, note))
-        items.append(('事務代行手数料', '（契約書類作成、物件調査、住宅ローン等の代行手数料　約5～10万円）',
-                      0, OTHER_AGENT_ADMIN_FEE, True, None))
+        r = reds_fee(price)
+        reds = r['fee_and_tax']
+        note = (f"REDS手数料計算（calc10_2）で算出: ({r['rate']}%＋3万円)×1.1"
+                + (f"、上限 {r['limit_str']}" if r['limit_str'] else '')
+                + f"／割引率 {r['discount_rate']}%")
+    items.append((f'仲介手数料（{plan}）', '（一般的な仲介手数料は、物件価格の3％＋6万円に消費税）',
+                  val('仲介手数料', reds), legal, False, note))
+    items.append(('事務代行手数料', '（契約書類作成、物件調査、住宅ローン等の代行手数料　約5～10万円）',
+                  0, OTHER_AGENT_ADMIN_FEE, True, None))
 
     items.append(('登記費用', '（移転登記・保存登記・抵当権設定の登録免許税と司法書士報酬）',
                   val('登記費用', estimate_registration(price, kind)), '=E@ROW@', True,

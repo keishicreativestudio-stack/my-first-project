@@ -14,13 +14,14 @@ python3 shohiyo/make_estimate.py shohiyo/examples/sample_mansion.json 出力.xls
 |---|---|---|
 | `type` | ○ | `新築戸建` / `中古戸建` / `新築マンション` / `中古マンション` / `土地` |
 | `price` | ○ | 物件価格（円） |
-| `deal` | | 取引態様 `仲介`（既定）/ `売主` / `代理`。売主・代理は仲介手数料 0 |
-| `fee_plan` | | `割引`（既定。REDS calc10_2 で計算）/ `無料` / `半額` |
-| `name` `address` `customer` `staff` | | 物件名・所在地・お客様名・担当 |
+| `deal` | | 取引態様 `仲介`（既定）/ `売主` / `代理` |
+| `fee_3pct` | | 図面に「手数料3%」等の記載があれば `true` |
+| `fee_plan` | | 省略時は自動: 売主・代理・`fee_3pct` → `無料`、それ以外 → `割引`（REDS calc10_2）。`半額` は明示指定のみ |
+| `name` `address` `customer` `staff` | | 物件名・所在地・お客様名・担当（既定「柴田」） |
 | `built_year` | | 築年（西暦）。1981年以前は旧耐震の注記を追加 |
 | `management_fee` `repair_reserve` | | 管理費・修繕積立金（月額）。マンションの清算金 = 合計 × 2ヶ月 |
 | `initial_repair_fund` | | 修繕積立基金（新築マンション） |
-| `loan` | | `amount`（既定: 物件価格）、`rate`（既定 0.945）、`years`（既定 35）、`bonus`（既定 0） |
+| `loan` | | `amount`（既定: 物件価格）、`rate`（既定 1.195）、`years`（既定 35）、`bonus`（既定 0） |
 | `overrides` | | `{"登記費用": 480000}` のように概算値を上書き |
 
 ## 計算ルール

@@ -4,5 +4,5 @@
   "type": "新築戸建",
   "deal": "仲介",
   "price": 57980000,
-  "fee_plan": "無料"
+  "fee_3pct": true
 }

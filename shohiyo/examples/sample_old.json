@@ -1,0 +1,11 @@
+{
+  "name": "（例）旧耐震マンション",
+  "address": "東京都新宿区",
+  "type": "中古マンション",
+  "deal": "仲介",
+  "price": 32800000,
+  "built_year": 1979,
+  "management_fee": 18000,
+  "repair_reserve": 20000,
+  "loan": {"amount": 30000000, "rate": 0.8, "years": 35}
+}

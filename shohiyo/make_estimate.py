@@ -248,7 +248,7 @@ def write_workbook(s, out_path):
     wb = Workbook()
     ws = wb.active
     ws.title = '資金計算書'
-    for col, w in {'A': 12, 'B': 18, 'C': 23, 'D': 10, 'E': 24, 'F': 3, 'G': 5, 'H': 22}.items():
+    for col, w in {'A': 14, 'B': 20, 'C': 23, 'D': 10, 'E': 24, 'F': 3, 'G': 5, 'H': 22}.items():
         ws.column_dimensions[col].width = w
 
     def put(ref, value, size=12, bold=False, color=None, fmt=None, align=None, wrap=False):
@@ -294,8 +294,15 @@ def write_workbook(s, out_path):
     sub_row = first + len(items) * 2
     total_row, diff_row = sub_row + 2, sub_row + 4
     own_row, loan_row = sub_row + 6, sub_row + 8
+    notes = ['※当該計算書の金額は作成時での概算のものであり、実際のお支払い額と異なる場合がございます。',
+             '※上記費用の他、不動産取得後に不動産取得税の納税が必要となる場合があります。納期は各都道府県により異なります。']
+    if is_old_seismic(s.get('built_year')):
+        notes.append('※耐震基準適合証明書の発行（費用約5～6万円）を受けると、住宅ローン減税、不動産取得税・登録免許税の'
+                     '減税の適用を受けることができる場合がございます。')
+    notes_row = loan_row + 10  # 住宅ローン明細の下に注記
+    print_end = notes_row + len(notes) - 1
     reg = registration_rows(s)
-    reg_head = loan_row + 10  # 住宅ローン明細の下
+    reg_head = print_end + 3  # 登記費用の内訳は印刷範囲の外
     reg_total = reg_head + 1 + len(reg) + 1
     for name, desc, reds, other, approx, note in items:
         fill = lambda v: (v.replace('@ROW@', str(row)).replace('@LOAN@', str(loan_row))
@@ -335,7 +342,7 @@ def write_workbook(s, out_path):
     put(f'E{own_row}', f'=E{total_row}-E{loan_row}', 14, True, fmt=YEN, align='right')
 
     ws.merge_cells(f'A{loan_row}:B{loan_row}')
-    put(f'A{loan_row}', '住宅ローン明細（融資事務手数料型）', bold=True)
+    put(f'A{loan_row}', '住宅ローン明細', bold=True)
     put(f'C{loan_row}', '融資金額', 12, align='right')
     c = put(f'E{loan_row}', loan['amount'], 14, True, BLUE, YEN, 'right')
     c.comment = Comment('既定は物件価格の全額借入（諸費用は自己資金）。変更すると自己資金・返済額が再計算されます', 'shohiyo')
@@ -343,7 +350,7 @@ def write_workbook(s, out_path):
     ws.merge_cells(f'A{r}:H{r}')
     rate_row = loan_row + 4  # 下の表の金利・期間の行
     bank, rate_type = loan['bank'], loan['rate_type']
-    put(f'A{r}', f'="{bank}：借入期間"&E{rate_row}&"年間、{rate_type}年"'
+    put(f'A{r}', f'="{bank}（融資事務手数料型）：借入期間"&E{rate_row}&"年間、{rate_type}年"'
                  f'&TEXT(D{rate_row},"0.000")&"％　元利均等返済"', 11)
     ws.merge_cells(f'A{r + 1}:H{r + 1}')
     put(f'A{r + 1}', '※金利は金融機関・審査により異なります。一例です。', 10)
@@ -372,8 +379,14 @@ def write_workbook(s, out_path):
     put(f'D{y + 2}', '年2回', 10, align='center')
     put(f'E{y + 2}', loan['bonus'], 14, True, BLUE, YEN, 'right')
 
-    # 登記費用の内訳（固定資産税評価額から計算）
-    assert reg_head == y + 4
+    assert notes_row == y + 4
+    for i, text in enumerate(notes):
+        n = notes_row + i
+        ws.merge_cells(f'A{n}:H{n}')
+        put(f'A{n}', text, 9, wrap=True)
+        ws.row_dimensions[n].height = 26
+
+    # 登記費用の内訳（固定資産税評価額から計算）。印刷範囲の外
     ws.merge_cells(f'A{reg_head}:B{reg_head}')
     put(f'A{reg_head}', '登記費用の内訳', bold=True)
     for col, label in zip('CDE', ('課税標準(評価額等)', '税率', '登録免許税')):
@@ -401,24 +414,13 @@ def write_workbook(s, out_path):
     for col in 'BCDE':
         ws[f'{col}{r}'].border = Border(top=thin)
 
-    notes = ['※当該計算書の金額は作成時での概算のものであり、実際のお支払い額と異なる場合がございます。',
-             '※上記費用の他、不動産取得後に不動産取得税の納税が必要となる場合があります。納期は各都道府県により異なります。']
-    if is_old_seismic(s.get('built_year')):
-        notes.append('※耐震基準適合証明書の発行（費用約5～6万円）を受けると、住宅ローン減税、不動産取得税・登録免許税の'
-                     '減税の適用を受けることができる場合がございます。')
-    n = reg_total + 2
-    for text in notes:
-        ws.merge_cells(f'A{n}:H{n}')
-        put(f'A{n}', text, 9, wrap=True)
-        ws.row_dimensions[n].height = 26
-        n += 1
 
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.page_setup.orientation = 'portrait'
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 1
     ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.print_area = f'A1:H{n - 1}'
+    ws.print_area = f'A1:H{print_end}'
     wb.calculation.fullCalcOnLoad = True  # Excel で開いたら必ず再計算
     wb.save(out_path)
 
